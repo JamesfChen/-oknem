@@ -1,0 +1,5 @@
+#ip3 install -r requirements.txt
+sqlalchemy
+aiohttp
+aiodns
+pyrebase
