@@ -22,7 +22,18 @@ def get_host_ip():
 class RHandler(SimpleHTTPRequestHandler):
 
     def do_CONNECT(self):
-        print("In do_CONNECT, path: %s" % self.path)
+        print("do_CONNECT, path: %s" % self.path)
+        pass
+
+    def do_GET(self):
+        print("do_GET, path: %s" % self.path)
+
+    def do_HEAD(self):
+        print("do_HEAD, path: %s" % self.path)
+
+    def do_POST(self):
+        print("do_POST, path: %s" % self.path)
+
 
 
 def run(server_class=HTTPServer, handler_class=BaseHTTPRequestHandler):
