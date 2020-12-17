@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 # python setup.py install
 setup(
     name='oknem',
-    version='1.0.1',
+    version='1.0.0',
     packages=find_packages(include=['oknem']),
     include_package_data=True,
     zip_safe=False,

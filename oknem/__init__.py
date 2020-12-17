@@ -35,10 +35,9 @@ class RHandler(SimpleHTTPRequestHandler):
         print("do_POST, path: %s" % self.path)
 
 
-
 def run(server_class=HTTPServer, handler_class=BaseHTTPRequestHandler):
     # print('local ip', get_host_ip())
-    server_address = ('', 8889)
+    server_address = ('', 8888)
     print('listening %s' % (server_address,))
     httpd = server_class(server_address, handler_class)
     httpd.serve_forever()
