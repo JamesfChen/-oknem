@@ -1,5 +1,6 @@
 import platform,os,signal
 from subprocess import  Popen,PIPE
+import subprocess
 def is_macos():
     return "Darwin" in platform.system()
 
@@ -77,5 +78,5 @@ def process_list(serial_no, pkg_name):
 if __name__ == "__main__":
     # while True:
     # process_list('c4c81150', 'com.sankuai.meituan')
-    process_list('HMQNW20521005648', 'com.jamesfchen.vpn')
+    process_list('CUYDU19701014125', 'com.jamesfchen.vpn')
     # time.sleep(1)
