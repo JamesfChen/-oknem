@@ -5,10 +5,19 @@ from aiohttp import web
 port = 8889
 
 
+async def handle(request):
+    print('handle')
+    return web.Response(text=('hello,adsf'))
+
+
 def start_server():
 
     app = web.Application()
-    # web.run_app(app, port=9000)
+    app.add_routes([web.get('/', handle),
+                    web.patch('/', handle),
+                    web.post('/', handle),
+                    web.put('/', handle),
+                    ])
     runner = web.AppRunner(app)
     return runner
 
