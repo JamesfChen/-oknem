@@ -1,12 +1,14 @@
 package com.jamesfchen.vpn
 
+import android.content.Intent
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
+import com.jamesfchen.vpn.MyVpnService.Companion.ALLOW_PKG_NAME_LIST
 
 /**
  * A simple [Fragment] subclass as the default destination in the navigation.
@@ -14,8 +16,8 @@ import androidx.navigation.fragment.findNavController
 class FirstFragment : Fragment() {
 
     override fun onCreateView(
-            inflater: LayoutInflater, container: ViewGroup?,
-            savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
     ): View? {
         // Inflate the layout for this fragment
         return inflater.inflate(R.layout.fragment_first, container, false)
@@ -27,6 +29,10 @@ class FirstFragment : Fragment() {
         view.findViewById<Button>(R.id.button_first).setOnClickListener {
             findNavController().navigate(R.id.action_FirstFragment_to_SecondFragment)
         }
-        activity?.let { MyVpnService.bindAndStartService(it) }
+        activity?.let {
+            val realIntent = Intent(activity, MyVpnService::class.java)
+            realIntent.putExtra(ALLOW_PKG_NAME_LIST, arrayListOf("com.netease.cloudmusic"))
+            MyVpnService.start(it, realIntent)
+        }
     }
 }

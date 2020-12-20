@@ -11,8 +11,12 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.VpnService
 import android.os.Build
+import android.os.Message
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import com.jamesfchen.vpn.protocol.TcpHandler
+import com.jamesfchen.vpn.protocol.TcpHandlerThread
+import com.jamesfchen.vpn.protocol.UdpHandler
 import kotlin.system.exitProcess
 
 /**
@@ -23,15 +27,59 @@ import kotlin.system.exitProcess
  * @since: Sep/25/2018  Tue
  */
 class MyVpnService : VpnService() {
-//    private val api: IMockApi = object : Stub() {
-//        @Throws(RemoteException::class)
-//        fun register(callback: IMockServerCallback?) {
-//        }
-//    }
+
+    companion object {
+        private val TAG: String = Constants.TAG + "/VpnService"
+        fun start(activity: Context, intent: Intent? = null) {
+            val realIntent = intent ?: Intent(activity, MyVpnService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                activity.startForegroundService(realIntent)
+            } else {
+                activity.startService(realIntent)
+            }
+        }
+
+        private fun bind(activity: Context, intent: Intent, connection: ServiceConnection) {
+            activity.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        }
+
+        fun bindAndStart(activity: Context, intent: Intent? = null, connection: ServiceConnection) {
+            val realIntent = intent ?: Intent(activity, MyVpnService::class.java)
+            start(activity, realIntent)
+            bind(activity, realIntent, connection)
+        }
+
+        private fun unbind(activity: Context, connection: ServiceConnection) {
+            activity.unbindService(connection)
+        }
+
+        fun stop(activity: Context, intent: Intent? = null) {
+            val realIntent = intent ?: Intent(activity, MyVpnService::class.java)
+            activity.stopService(realIntent)
+        }
+
+        fun unbindAndStop(
+            activity: Context,
+            intent: Intent? = null,
+            connection: ServiceConnection
+        ) {
+            val realIntent = intent ?: Intent(activity, MyVpnService::class.java)
+            activity.unbindService(connection)
+            activity.stopService(realIntent)
+        }
+
+        const val ONGOING_NOTIFICATION_ID = 100
+        const val channelId = "channelId_00"
+        const val channelName = "channelName_00"
+        const val ALLOW_PKG_NAME_LIST = "allow_pkg_name_list"
+        const val DISALLOW_PKG_NAME_LIST = "disallow_pkg_name_list"
+
+        private const val VPN_ADDRESS = "10.0.0.2" // Only IPv4 support for now
+        private const val VPN_ROUTE = "0.0.0.0" // Intercept everything
+    }
 
     override fun onCreate() {
         super.onCreate()
-        setupVPN()
         Log.d(TAG, "onCreate")
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -58,36 +106,47 @@ class MyVpnService : VpnService() {
             startForeground(ONGOING_NOTIFICATION_ID, notification)
         }
     }
-    private  val VPN_ADDRESS = "10.0.0.2" // Only IPv4 support for now
-    private  val VPN_ROUTE = "0.0.0.0" // Intercept everything
-    private var vpnInterface: ParcelFileDescriptor? = null
-    private fun setupVPN() {
+
+    private fun createVpn(intent: Intent?): ParcelFileDescriptor? {
+        intent ?: return null
         try {
-            if (vpnInterface == null) {
-                val builder = Builder()
-                builder.addAddress(VPN_ADDRESS, 32)
-                builder.addRoute(VPN_ROUTE, 0)
-                try {
-                    builder.addAllowedApplication("com.netease.cloudmusic")
-                    builder.addAllowedApplication("com.netease.cloudmusic.lite")
-                } catch (e: PackageManager.NameNotFoundException) {
-                    Log.d(TAG, "未检测到网易云音乐")
-                } catch (e: PackageManager.NameNotFoundException) {
-                    Log.d(TAG, "未检测到网易云音乐极速版")
+            val builder = Builder()
+            try {
+                builder.apply {
+                    addAddress(VPN_ADDRESS, 32)
+                    addRoute(VPN_ROUTE, 0)
+                    intent.getStringArrayListExtra(ALLOW_PKG_NAME_LIST)
+                        ?.forEach {
+                            addAllowedApplication(it)
+                        }
+                    intent.getStringArrayListExtra(DISALLOW_PKG_NAME_LIST)
+                        ?.forEach {
+                            addDisallowedApplication(it)
+                        }
+//                    addDisallowedApplication(pkg_name)
+//                    addDnsServer(dns_address)
+//                    addSearchDomain(domain)
+//                    allowBypass()
+//                    allowFamily(AF_INET)
+//                    setBlocking(true)
+//                    setHttpProxy(proxyinfo)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+//                        setMetered(true)
+                    }
+//                    setMtu(mtu)
+//                    setSession(session)
+//                    setUnderlyingNetworks(networks)
+                    //                setConfigureIntent()
                 }
-                vpnInterface = builder.setSession(getString(R.string.app_name)).establish()
+            } catch (e: PackageManager.NameNotFoundException) {
+                Log.d(TAG, "未检测到网易云音乐")
             }
+            return builder.setSession(getString(R.string.app_name)).establish()
         } catch (e: Exception) {
-            Log.e(TAG, "Easy163 VPN 启动失败")
+            Log.e(TAG, "VPN 启动失败")
             exitProcess(0)
         }
     }
-
-
-//    override fun onBind(intent: Intent): IBinder? {
-//        Log.d(TAG, "onBind")
-//        return api.asBinder()
-//    }
 
     /**
      * 当MockService进程被kill掉，经过短暂的几秒系统会自动重启进程
@@ -99,13 +158,12 @@ class MyVpnService : VpnService() {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         var a = "-1"
-        if (intent != null) {
-            a = intent.getStringExtra("vpn")
+
+        createVpn(intent)?.let {
+            val vpnHandler = VpnHandlerThread(it)
+            vpnHandler.start()
         }
-        Log.d(
-            TAG,
-            "startId:$startId intent value:$a"
-        )
+        Log.d(TAG, "startId:$startId intent value:$a")
         return START_REDELIVER_INTENT
     }
 
@@ -118,35 +176,4 @@ class MyVpnService : VpnService() {
         super.onLowMemory()
     }
 
-    companion object {
-        private val TAG: String = Constants.TAG + "/VpnService"
-        fun bindAndStartService(
-            activity: Context,
-            connection: ServiceConnection? = null
-        ) {
-            val intent = Intent(activity, MyVpnService::class.java)
-            intent.putExtra("vpn", "123412")
-            connection?.let {
-                activity.bindService(intent, it, Context.BIND_AUTO_CREATE)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                activity.startForegroundService(intent)
-            } else {
-                activity.startService(intent)
-            }
-        }
-
-        fun unbindAndStopService(
-            activity: Context,
-            connection: ServiceConnection?
-        ) {
-            val intent = Intent(activity, MyVpnService::class.java)
-            activity.unbindService(connection!!)
-            activity.stopService(intent)
-        }
-
-        const val ONGOING_NOTIFICATION_ID = 100
-        const val channelId = "channelId_00"
-        const val channelName = "channelName_00"
-    }
 }
