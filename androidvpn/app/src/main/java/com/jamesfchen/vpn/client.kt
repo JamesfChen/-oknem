@@ -76,17 +76,15 @@ class BioSocketClient(val socket: Socket) : Client {
     override fun send(reqBuffer: ByteBuffer, block: (respBuffer: ByteBuffer) -> Unit) {
         try {
             outputStream.write(reqBuffer.array())
-            val byteBuffer = ByteBuffer.allocate(BUFFER_SIZE)
-            val ba = ByteArray(2)
-            var len: Int
-            while (true) {
-                len = inputStream.read(ba)
-                if (len == -1) {
-                    break
-                }
-                byteBuffer.put(ba)
+            val ba = ByteArray(BUFFER_SIZE)
+            val len = inputStream.read(ba)
+            val byteBuffer = if (len > 0) {
+                val wrap = ByteBuffer.wrap(ba)
+                wrap.limit(len)
+                wrap
+            } else {
+                ByteBuffer.wrap("".toByteArray())
             }
-            byteBuffer.flip()
             block(byteBuffer)
         } catch (e: Exception) {
             Log.d(BIO_TAG, Log.getStackTraceString(e))

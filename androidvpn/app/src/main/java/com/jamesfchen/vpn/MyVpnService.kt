@@ -11,12 +11,8 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.VpnService
 import android.os.Build
-import android.os.Message
 import android.os.ParcelFileDescriptor
 import android.util.Log
-import com.jamesfchen.vpn.protocol.TcpHandler
-import com.jamesfchen.vpn.protocol.TcpHandlerThread
-import com.jamesfchen.vpn.protocol.UdpHandler
 import kotlin.system.exitProcess
 
 /**
@@ -118,6 +114,7 @@ class MyVpnService : VpnService() {
                     intent.getStringArrayListExtra(ALLOW_PKG_NAME_LIST)
                         ?.forEach {
                             Log.d(TAG, "allow:$it")
+                            packageManager.getPackageInfo(it, 0)
                             addAllowedApplication(it)
                         }
                     intent.getStringArrayListExtra(DISALLOW_PKG_NAME_LIST)

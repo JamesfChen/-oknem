@@ -2,16 +2,8 @@ package com.jamesfchen.vpn
 
 import android.os.ParcelFileDescriptor
 import android.util.Log
-import com.jamesfchen.vpn.protocol.TcpHandler
-import com.jamesfchen.vpn.protocol.TcpHandlerThread
-import com.jamesfchen.vpn.protocol.UdpHandler
-import okhttp3.CacheControl
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
+import com.jamesfchen.vpn.protocol.*
+import okio.ByteString.Companion.toByteString
 
 
 /**
@@ -27,15 +19,13 @@ import java.nio.channels.FileChannel
  *          vpn <---
  * app <---
  */
-class VpnHandlerThread(vpnInterface: ParcelFileDescriptor) : Thread("vpn_thread") {
+class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thread") {
     companion object {
         const val TAG = "${Constants.TAG}/vpn_thread"
     }
 
     val tcpHandler: TcpHandler
     val udpHandler: UdpHandler
-    val vpnOutput: FileChannel = FileOutputStream(vpnInterface.fileDescriptor).channel
-    val vpnInput: FileChannel = FileInputStream(vpnInterface.fileDescriptor).channel
 
     init {
         val tcpThread = TcpHandlerThread()
@@ -49,36 +39,65 @@ class VpnHandlerThread(vpnInterface: ParcelFileDescriptor) : Thread("vpn_thread"
     }
 
     override fun run() {
-        PacketReader(vpnInput).use { pReader ->
-            PacketWriter(vpnOutput).use { pWriter ->
+        PacketReader(vpnInterface).use { pReader ->
+            PacketWriter(vpnInterface).use { pWriter ->
 
-                var packet = pReader.nextPacket()
-                while (packet != null) {
-//                when (ipPacket.header.type) {
-//                    PacketType.TCP -> tcpHandler.sendEmptyMessage(1)
-//                    PacketType.UDP -> udpHandler.sendEmptyMessage(1)
-//                    else -> Log.d(TAG, "not find type")
-//                }
-                    for (i in 0..9) {
-                        val myClient = AioSocketClient()
-                        myClient.connect("323", 12)
-//                    myClient.write("aaaaaaaaaaaaaaaaaaaaaa")
-                        myClient.send(ByteBuffer.wrap("aaaaaaaaaaaaaaaaaaaaaa".toByteArray())) { respBuffer ->
-                            Log.d(TAG, "buffer size:${respBuffer.remaining()}")
-                            val header = Header(PacketType.TCP)
-                            pWriter.writePacket(Packet(header, respBuffer))
+                while (true) {
+                    val packet = pReader.nextPacket()
+                    if (packet != null) {
+                        when (packet.ipHeader.protocol) {
+                            Protocol.TCP -> {
+//                                val msg = Message.obtain()
+//                                msg.obj = packet
+//                                tcpHandler.sendMessage(msg)
+//                                val packet = msg.obj as Packet
+                                val tcpHeader = packet.tlHeader as TcpHeader
+                                val destIp = packet.ipHeader.destinationAddresses.hostAddress
+                                val destPort = (tcpHeader).destinationPort
+                                Log.d(TAG, "dest:${destIp}:${destPort}")
+                                val controlbit = tcpHeader.controlBit
+                                if (controlbit.hasSYN) {
+                                    pWriter.writeAckPacket()
+                                } else if (controlbit.hasACK) {
+//                                    val myClient =
+//                                        Client.createAndConnect(destIp, destPort, aioSocket = true)
+//                                    Log.d(
+//                                        TAG,
+//                                        "socket remote:${myClient.remoteAddress} local:${myClient.localAddress}"
+//                                    )
+//                                    Log.d(TAG, "req buffer remaining:${packet.buffer.remaining()}")
+//                                    myClient.send(packet.buffer) { respBuffer ->
+//                                        Log.d(
+//                                            TAG,
+//                                            "resp buffer size:${respBuffer.remaining()} ${
+//                                                respBuffer.toByteString().utf8()
+//                                            }"
+//                                        )
+////                                        pWriter.writePacket()
+//                                    }
+                                } else if (controlbit.hasFIN) {
+
+                                } else if (controlbit.hasPSH) {
+
+                                } else if (controlbit.hasRST) {
+
+                                } else if (controlbit.hasURG) {
+
+                                }
+
+                            }
+                            Protocol.UDP -> {
+                                udpHandler.sendEmptyMessage(1)
+                            }
+                            else -> {
+                                Log.d(TAG, "not find type")
+                            }
                         }
 
-//                        val client = OkHttpClient()
-//                        val listener = MyWebSocketListener()
-//                        val request: Request = Request.Builder()
-//                            .url("ws://echo.websocket.org")
-//                            .build()
-//                        val webSocket = client.newWebSocket(request, listener)
-//                        webSocket.send("safasf")
-
+                    } else {
+//                        Log.d(TAG, "packet is null")
                     }
-                    packet = pReader.nextPacket()
+                    sleep(50)
                 }
             }
         }

@@ -39,7 +39,7 @@ class FirstFragment : Fragment() {
     lateinit var myClient: Client
     fun send() {
 
-        myClient = Client.createAndConnect("192.168.9.103", 8889, aioSocket = true)
+        myClient = Client.createAndConnect("192.168.9.103", 8889, aioSocket = false)
         Log.d(
             C_TAG, "socket remote:${myClient.remoteAddress} local:${myClient.localAddress}"
         )
@@ -51,21 +51,21 @@ class FirstFragment : Fragment() {
                 }"
             )
         }
-        myClient.send(ByteBuffer.wrap("aaaaaaaaaaaaaaaaaaaaaa".toByteArray()),
-            object : CompletionHandler<Int, Any?> {
-                override fun completed(result: Int?, attachment: Any?) {
-                    Log.d(
-                        C_TAG, "result:${result}"
-                    )
-                }
-
-                override fun failed(exc: Throwable?, attachment: Any?) {
-                    Log.d(
-                        C_TAG, "result:" + Log.getStackTraceString(exc)
-                    )
-                }
-
-            })
+//        myClient.send(ByteBuffer.wrap("aaaaaaaaaaaaaaaaaaaaaa".toByteArray()),
+//            object : CompletionHandler<Int, Any?> {
+//                override fun completed(result: Int?, attachment: Any?) {
+//                    Log.d(
+//                        C_TAG, "result:${result}"
+//                    )
+//                }
+//
+//                override fun failed(exc: Throwable?, attachment: Any?) {
+//                    Log.d(
+//                        C_TAG, "result:" + Log.getStackTraceString(exc)
+//                    )
+//                }
+//
+//            })
 
     }
 
@@ -83,11 +83,11 @@ class FirstFragment : Fragment() {
                 onActivityResult(VPN_REQUEST_CODE, Activity.RESULT_OK, null)
             }
         }
-//        GlobalScope.launch {
-//            for (i in 0..20) {
+        GlobalScope.launch {
+            for (i in 0..20) {
 //                send()
-//            }
-//        }
+            }
+        }
 
     }
 
