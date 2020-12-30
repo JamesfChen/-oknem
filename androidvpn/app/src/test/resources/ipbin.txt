@@ -1,0 +1,23 @@
+0x45, 0x00, 0x00, 0x34, 0x00, 0x00, 0x00, 0x00,0x40, 0x06, 0xfc, 0xaf, 0xc0, 0xa8, 0x09, 0x67,0x3a, 0x21, 0x79, 0xe4
+\n\r\n\r
+45,00,00,34,00,00,00,00,40,06,fc,af,c0,a8,09,67,3a,21,79,e4
+Frame 9815: 66 bytes on wire (528 bits), 66 bytes captured (528 bits) on interface en0, id 0
+Ethernet II, Src: Apple_98:d9:41 (ac:bc:32:98:d9:41), Dst: Tp-LinkT_05:33:8e (dc:fe:18:05:33:8e)
+Internet Protocol Version 4, Src: 192.168.9.103, Dst: 58.33.121.228
+    0100 .... = Version: 4
+    .... 0101 = Header Length: 20 bytes (5)
+    Differentiated Services Field: 0x00 (DSCP: CS0, ECN: Not-ECT)
+    Total Length: 52
+    Identification: 0x0000 (0)
+    Flags: 0x00
+        0... .... = Reserved bit: Not set
+        .0.. .... = Don't fragment: Not set
+        ..0. .... = More fragments: Not set
+    Fragment Offset: 0
+    Time to Live: 64
+    Protocol: TCP (6)
+    Header Checksum: 0xfcaf [validation disabled]
+    [Header checksum status: Unverified]
+    Source Address: 192.168.9.103
+    Destination Address: 58.33.121.228
+Transmission Control Protocol, Src Port: 57417, Dst Port: 443, Seq: 120884, Ack: 111723, Len: 0
