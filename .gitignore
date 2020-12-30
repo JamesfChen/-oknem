@@ -128,3 +128,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .idea
+vpn_server/cmake-build-debug
+vpn_server/.DS_Store
