@@ -1,14 +1,17 @@
 package com.jamesfchen.vpn
 
 import android.util.Log
+import androidx.annotation.MainThread
+import androidx.annotation.WorkerThread
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import java.net.InetSocketAddress
+import java.net.Socket
+import java.net.SocketAddress
 import java.nio.ByteBuffer
-import java.nio.IntBuffer
 import java.nio.channels.AsynchronousSocketChannel
-import java.util.concurrent.Future
+import java.nio.channels.CompletionHandler
 
 /**
  * Copyright ® $ 2017
@@ -17,42 +20,134 @@ import java.util.concurrent.Future
  * @author: hawks.jamesf
  * @since: Dec/20/2020  Sun
  */
-const val C_TAG="${Constants.TAG}/client"
-class AioSocketClient {
+const val C_TAG = "${Constants.TAG}/cli"
+
+interface Client {
     companion object {
-//        private const val PORT = 8888
-//        private const val IP_ADDRESS = "127.0.0.1"
+        fun createAndConnect(ip: String, port: Int, aioSocket: Boolean): Client {
+            if (aioSocket) {
+                val asynSocketChannel: AsynchronousSocketChannel = AsynchronousSocketChannel.open()
+                asynSocketChannel.connect(InetSocketAddress(ip, port)).get()
+                return AioSocketClient(asynSocketChannel)
+            } else {
+                val socket = Socket()
+                socket.connect(InetSocketAddress(ip, port))
+                return BioSocketClient(socket)
+            }
+        }
+
+        fun <A> createAndConnect(
+            ip: String,
+            port: Int,
+            handler: CompletionHandler<Void, A?>,
+            attachment: A? = null
+        ): Client {
+            val asynSocketChannel: AsynchronousSocketChannel = AsynchronousSocketChannel.open()
+            asynSocketChannel.connect(InetSocketAddress(ip, port), attachment, handler)
+            return AioSocketClient(asynSocketChannel)
+
+        }
+
     }
 
-    private val asynSocketChannel: AsynchronousSocketChannel = AsynchronousSocketChannel.open()
+    // -- asynchronous operations --
 
-    fun connect(ip: String, port: Int): Future<Void> {
-        return asynSocketChannel.connect(InetSocketAddress(ip, port))
+    val remoteAddress: SocketAddress?
+    val localAddress: SocketAddress?
+    fun send(reqBuffer: ByteBuffer, block: (respBuffer: ByteBuffer) -> Unit)
+    fun <A> send(
+        reqBuffer: ByteBuffer,
+        handler: CompletionHandler<Int, A?>,
+        attachment: A? = null
+    ) {
+    }
+}
+
+class BioSocketClient(val socket: Socket) : Client {
+    val outputStream = socket.getOutputStream()
+    val inputStream = socket.getInputStream()
+    override var remoteAddress: SocketAddress? = socket.remoteSocketAddress
+    override var localAddress: SocketAddress? = socket.localSocketAddress
+
+    companion object {
+        const val BIO_TAG = "${C_TAG}/BioSocket"
     }
 
-    fun send(reqBuffer: ByteBuffer, block: (respBuffer: ByteBuffer) -> Unit) {
+    override fun send(reqBuffer: ByteBuffer, block: (respBuffer: ByteBuffer) -> Unit) {
+        try {
+            outputStream.write(reqBuffer.array())
+            val byteBuffer = ByteBuffer.allocate(BUFFER_SIZE)
+            val ba = ByteArray(2)
+            var len: Int
+            while (true) {
+                len = inputStream.read(ba)
+                if (len == -1) {
+                    break
+                }
+                byteBuffer.put(ba)
+            }
+            byteBuffer.flip()
+            block(byteBuffer)
+        } catch (e: Exception) {
+            Log.d(BIO_TAG, Log.getStackTraceString(e))
+        }
+    }
+
+}
+
+class AioSocketClient(
+    val asynSocketChannel: AsynchronousSocketChannel
+) : Client {
+    companion object {
+        const val AIO_TAG = "${C_TAG}/AioSocket"
+    }
+
+    override var remoteAddress: SocketAddress? = asynSocketChannel.remoteAddress
+    override var localAddress: SocketAddress? = asynSocketChannel.localAddress
+
+    @WorkerThread
+    override fun send(reqBuffer: ByteBuffer, block: (respBuffer: ByteBuffer) -> Unit) {
+
         try {
             asynSocketChannel.write(reqBuffer).get()
-            val byteBuffer: ByteBuffer = ByteBuffer.allocate(1024)
+            val byteBuffer: ByteBuffer = ByteBuffer.allocate(BUFFER_SIZE)
             asynSocketChannel.read(byteBuffer).get()
             byteBuffer.flip()
             block(byteBuffer)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.d(AIO_TAG, Log.getStackTraceString(e))
+        }
+    }
+
+    @MainThread
+    override fun <A> send(
+        reqBuffer: ByteBuffer,
+        handler: CompletionHandler<Int, A?>,
+        attachment: A?
+    ) {
+
+        try {
+            asynSocketChannel.write(reqBuffer, attachment, handler)
+            val byteBuffer: ByteBuffer = ByteBuffer.allocate(BUFFER_SIZE)
+            asynSocketChannel.read(byteBuffer, attachment, handler)
+            byteBuffer.flip()
+        } catch (e: Exception) {
+            Log.d(AIO_TAG, Log.getStackTraceString(e))
         }
     }
 }
+
 class MyWebSocketListener : WebSocketListener() {
     override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
         super.onMessage(webSocket, bytes)
 //        ByteBuffer
 //        IntBuffer
 //        StringBuffer
-        Log.d(C_TAG,"onMessage bytes:$bytes")
+        Log.d(C_TAG, "onMessage bytes:$bytes")
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {
         super.onMessage(webSocket, text)
-        Log.d(C_TAG,"onMessage text:$text")
+        Log.d(C_TAG, "onMessage text:$text")
     }
 }

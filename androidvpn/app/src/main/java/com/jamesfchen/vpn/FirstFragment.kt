@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,6 +12,13 @@ import android.widget.Button
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import com.jamesfchen.vpn.MyVpnService.Companion.ALLOW_PKG_NAME_LIST
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import okio.ByteString.Companion.toByteString
+import java.net.InetSocketAddress
+import java.nio.ByteBuffer
+import java.nio.channels.AsynchronousSocketChannel
+import java.nio.channels.CompletionHandler
 
 /**
  * A simple [Fragment] subclass as the default destination in the navigation.
@@ -28,6 +36,39 @@ class FirstFragment : Fragment() {
         return inflater.inflate(R.layout.fragment_first, container, false)
     }
 
+    lateinit var myClient: Client
+    fun send() {
+
+        myClient = Client.createAndConnect("192.168.9.103", 8889, aioSocket = true)
+        Log.d(
+            C_TAG, "socket remote:${myClient.remoteAddress} local:${myClient.localAddress}"
+        )
+        myClient.send(ByteBuffer.wrap("aaaaaaaaaaaaaaaaaaaaaa".toByteArray())) { respBuffer ->
+            Log.d(
+                C_TAG,
+                "resp buffer size:${respBuffer.remaining()} ${
+                    respBuffer.toByteString().utf8()
+                }"
+            )
+        }
+        myClient.send(ByteBuffer.wrap("aaaaaaaaaaaaaaaaaaaaaa".toByteArray()),
+            object : CompletionHandler<Int, Any?> {
+                override fun completed(result: Int?, attachment: Any?) {
+                    Log.d(
+                        C_TAG, "result:${result}"
+                    )
+                }
+
+                override fun failed(exc: Throwable?, attachment: Any?) {
+                    Log.d(
+                        C_TAG, "result:" + Log.getStackTraceString(exc)
+                    )
+                }
+
+            })
+
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -42,6 +83,12 @@ class FirstFragment : Fragment() {
                 onActivityResult(VPN_REQUEST_CODE, Activity.RESULT_OK, null)
             }
         }
+//        GlobalScope.launch {
+//            for (i in 0..20) {
+//                send()
+//            }
+//        }
+
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -52,6 +99,14 @@ class FirstFragment : Fragment() {
                 realIntent.putExtra(ALLOW_PKG_NAME_LIST, arrayListOf("com.netease.cloudmusic"))
                 MyVpnService.start(it, realIntent)
             }
+        }
+
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        activity?.let {
+            MyVpnService.stop(it)
         }
     }
 }

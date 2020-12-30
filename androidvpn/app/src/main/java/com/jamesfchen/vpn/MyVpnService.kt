@@ -117,6 +117,7 @@ class MyVpnService : VpnService() {
                     addRoute(VPN_ROUTE, 0)
                     intent.getStringArrayListExtra(ALLOW_PKG_NAME_LIST)
                         ?.forEach {
+                            Log.d(TAG, "allow:$it")
                             addAllowedApplication(it)
                         }
                     intent.getStringArrayListExtra(DISALLOW_PKG_NAME_LIST)
@@ -139,7 +140,7 @@ class MyVpnService : VpnService() {
                     //                setConfigureIntent()
                 }
             } catch (e: PackageManager.NameNotFoundException) {
-                Log.d(TAG, "未检测到网易云音乐")
+                Log.e(TAG, "未检测到网易云音乐")
             }
             return builder.setSession(getString(R.string.app_name)).establish()
         } catch (e: Exception) {
@@ -158,7 +159,6 @@ class MyVpnService : VpnService() {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         var a = "-1"
-
         createVpn(intent)?.let {
             val vpnHandler = VpnHandlerThread(it)
             vpnHandler.start()
