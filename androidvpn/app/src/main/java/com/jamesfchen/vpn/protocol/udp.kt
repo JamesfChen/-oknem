@@ -30,7 +30,12 @@ class UdpHandler(looper: Looper) : Handler(looper) {
     }
 
 }
-
-class UdpHeader(val buffer: ByteBuffer):TransportLayerHeader {
-
+fun ByteBuffer.getUdpHeader(): UdpHeader {
+    return UdpHeader(1)
+}
+data class UdpHeader(val v:Int):TransportLayerHeader {
+    override fun toByteBuffer(): ByteBuffer {
+        val buffer = ByteBuffer.allocate(10)
+        return buffer
+    }
 }

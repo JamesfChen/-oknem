@@ -77,12 +77,13 @@ data class TypeOfService(val byteValue: Int) {
     override fun toString(): String {
         return "{\"precedenceType\":$precedenceType,\"d\":$d,\"t\":$t,\"r\":$r}"
     }
+
 }
 
 data class IpFlag(val byteValue: Int) {
     //    val reserved: Int //1bit
     val df: Int = byteValue shr 1 and 0b01  //1bit Don't Fragment 能否分片位，0表示可以分片，1表示不能分片。
-    val mf: Int = byteValue  and 0b001 //1bit More Fragment 表示是否该报文为最后一片，0表示最后一片，1代表后面还有。
+    val mf: Int = byteValue and 0b001 //1bit More Fragment 表示是否该报文为最后一片，0表示最后一片，1代表后面还有。
     override fun toString(): String {
         return "{\"df\":$df,\"mf\":$mf}"
     }
@@ -159,7 +160,68 @@ enum class IpVersion(val typeValue: Int) {
     }
 }
 
-data class IpHeader(val buffer: ByteBuffer) {
+fun ByteBuffer.getIpHeader(): IpHeader {
+    val buffer = this
+    val versionAndIhl = buffer.getUByte()
+    val version = IpVersion.parseIpVersion(versionAndIhl shr 4)
+    val ihl = (versionAndIhl and 0x0f).toInt() * 4
+    val typeOfService = TypeOfService(buffer.getUByte())
+    val totalLength = buffer.getUShort()
+    val identification = buffer.getUShort()
+    val flagsAndFragment = buffer.getUShort()
+    val flags = IpFlag(flagsAndFragment shr 13)
+    val fragmentOffset = flagsAndFragment and 0b0001_1111_1111_1111
+    val ttl = buffer.getUByte()
+    val protocol = Protocol.parseProtocol(buffer.getUByte())
+    val headerChecksum = buffer.getUShort()
+    val sourceAddresses = InetAddress.getByAddress(buffer.getBytes(4))
+    val destinationAddresses = InetAddress.getByAddress(buffer.getBytes(4))
+
+    val ipHeader = IpHeader(
+        version, ihl, typeOfService, totalLength,
+        identification, flags, fragmentOffset, ttl,
+        protocol, headerChecksum, sourceAddresses, destinationAddresses
+    )
+    val optionSize = ihl - IP4_HEADER_SIZE
+    if (optionSize > 0) {
+        //options
+
+    }
+    return ipHeader
+}
+
+fun IpHeader.toByteBuffer(): ByteBuffer {
+    val buffer = ByteBuffer.allocate(ihl)
+    val versionAndIhl = ((version.typeValue shl 4) or (ihl/4)).toByte()
+    buffer.putUByte(versionAndIhl)
+    buffer.putUByte(typeOfService.byteValue.toByte())
+    buffer.putUShort(totalLength)
+    buffer.putUShort(identification)
+    val flagsAndFragment = (flags.byteValue shl 13) or fragmentOffset
+    buffer.putUShort(flagsAndFragment)
+    buffer.putUByte(ttl.toByte())
+    buffer.putUByte(protocol.typeValue.toByte())
+    buffer.putUShort(headerChecksum)
+    buffer.put(sourceAddresses.address)
+    buffer.put(destinationAddresses.address)
+    buffer.flip()
+    return buffer
+}
+
+data class IpHeader(
+    val version: IpVersion,//4bits
+    val ihl: Int,//4bits 描述IP包头的长度,由固定长度20字节+可变长度40字节，以4bytes为一个单位，固定长度20字节的值为20/4=5，需要用4bits表示5即为0101
+    val typeOfService: TypeOfService,//8bits
+    val totalLength: Int,//16bits 可存65535大小
+    val identification: Int,//16bits 主机每发一个报文，加1，分片重组时会用到该字段。
+    val flags: IpFlag,//3bits
+    val fragmentOffset: Int,//13bits 分片重组时会用到该字段。表示较长的分组在分片后，某片在原分组中的相对位置。以8个字节为偏移单位
+    val ttl: Int,//8bits Time to Live
+    val protocol: Protocol,//8bits
+    val headerChecksum: Int,//16bits
+    val sourceAddresses: InetAddress,//32bits
+    val destinationAddresses: InetAddress//32bits
+) {
     /*
         0                   1                   2                   3
         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -179,50 +241,11 @@ data class IpHeader(val buffer: ByteBuffer) {
 
         Example Internet Datagram Header
      */
-    val version: IpVersion//4bits
-    val ihl: Int//4bits 描述IP包头的长度,由固定长度20字节+可变长度40字节，以4bytes为一个单位，固定长度20字节的值为20/4=5，需要用4bits表示5即为0101
-    val typeOfService: TypeOfService//8bits
-    val totalLength: Int//16bits 可存65535大小
-    val identification: Int//16bits 主机每发一个报文，加1，分片重组时会用到该字段。
-
-    val flags: IpFlag//3bits
-    val fragmentOffset: Int//13bits 分片重组时会用到该字段。表示较长的分组在分片后，某片在原分组中的相对位置。以8个字节为偏移单位
-    val ttl: Int//8bits Time to Live
-    val protocol: Protocol//8bits
-    val headerChecksum: Int//16bits
-    val sourceAddresses: InetAddress//32bits
-    val destinationAddresses: InetAddress //32bits
-
-    init {
-        val versionAndIhl = buffer.getUByte()
-        version = IpVersion.parseIpVersion(versionAndIhl shr 4)
-        ihl = (versionAndIhl and 0x0f).toInt() * 4
-        typeOfService = TypeOfService(buffer.getUByte())
-        totalLength = buffer.getUShort()
-        identification = buffer.getUShort()
-        val flagsAndFragment = buffer.getUShort()
-        flags = IpFlag(flagsAndFragment shr 13)
-        fragmentOffset = flagsAndFragment and 0b0001_1111_1111_1111
-        ttl = buffer.getUByte()
-        protocol = Protocol.parseProtocol(buffer.getUByte())
-        headerChecksum = buffer.getUShort()
-        sourceAddresses = InetAddress.getByAddress(buffer.getBytes(4))
-        destinationAddresses = InetAddress.getByAddress(buffer.getBytes(4))
-
-        val optionSize = ihl - IP4_HEADER_SIZE
-        if (optionSize > 0) {
-            //options
-
-        }
-
-    }
-
     override fun toString(): String {
         return "\"ipheader\":{\"version\":$version,\"ihl\":$ihl,\"typeOfService\":$typeOfService,\"totalLength\":$totalLength," +
                 "\"identification\":$identification,\"flags\":$flags,\"fragmentOffset\":$fragmentOffset,\"ttl\":$ttl," +
                 "\"protocol\":$protocol,\"headerChecksum\":$headerChecksum," +
                 "\"sourceAddresses\":$sourceAddresses,\"destinationAddresses\":$destinationAddresses}"
     }
-
-
 }
+

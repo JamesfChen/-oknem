@@ -63,64 +63,92 @@ data class ControlBit(val byteValue: Int) {
 
 }
 
-data class TcpHeader(val buffer: ByteBuffer) : TransportLayerHeader {
-/*
-   0                   1                   2                   3
-    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |          Source Port          |       Destination Port        |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                        Sequence Number                        |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                    Acknowledgment Number                      |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |  Data |           |U|A|P|R|S|F|                               |
-   | Offset| Reserved  |R|C|S|S|Y|I|            Window             |
-   |       |           |G|K|H|T|N|N|                               |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |           Checksum            |         Urgent Pointer        |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                    Options                    |    Padding    |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                             data                              |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- */
+fun ByteBuffer.getTcpHeader(): TcpHeader {
+    val buffer = this
+    val sourcePort = buffer.getUShort()
+    val destinationPort = buffer.getUShort()
+    val sequenceNo = buffer.getUInt()
+    val acknowledgmentNo = buffer.getUInt()
+    val dataOffsetAndControlBitAndReserved = buffer.getUShort()
+    val dataOffset = (dataOffsetAndControlBitAndReserved shr 12).toInt() * 4
+    val controlBit = ControlBit(dataOffsetAndControlBitAndReserved and 0b0000000000_111111)
+    val window = buffer.getUShort()
+    val checksum = buffer.getUShort()
+    val urgentPointer = buffer.getUShort()
 
-    val sourcePort: Int
-    val destinationPort: Int
-    val sequenceNo: Long
-    val acknowledgmentNo: Long
-    val dataOffset: Int
+    val tcph = TcpHeader(
+        sourcePort,
+        destinationPort,
+        sequenceNo,
+        acknowledgmentNo,
+        dataOffset,
+        controlBit,
+        window,
+        checksum,
+        urgentPointer
+    )
+    val optionSize = dataOffset - TCP_HEADER_SIZE
+    if (optionSize > 0) {
+        //options
+        val optionsAndPadding = ByteArray(optionSize)
+        buffer.get(optionsAndPadding, 0, optionSize)
+        tcph.optionsAndPadding = optionsAndPadding
 
+    }
+    return tcph
+}
+
+data class TcpHeader(
+    val sourcePort: Int,
+    val destinationPort: Int,
+    val sequenceNo: Long,
+    val acknowledgmentNo: Long,
+    val dataOffset: Int,
     //    val reserved: Int
-    val controlBit: ControlBit
-    val window: Int
-    val checksum: Int
+    val controlBit: ControlBit,
+    val window: Int,
+    val checksum: Int,
     val urgentPointer: Int
+) : TransportLayerHeader {
+    /*
+       0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |          Source Port          |       Destination Port        |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                        Sequence Number                        |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                    Acknowledgment Number                      |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |  Data |           |U|A|P|R|S|F|                               |
+       | Offset| Reserved  |R|C|S|S|Y|I|            Window             |
+       |       |           |G|K|H|T|N|N|                               |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |           Checksum            |         Urgent Pointer        |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                    Options                    |    Padding    |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                             data                              |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     */
     var optionsAndPadding: ByteArray? = null
-
-    init {
-        sourcePort = buffer.getUShort()
-        destinationPort = buffer.getUShort()
-        sequenceNo = buffer.getUInt()
-        acknowledgmentNo = buffer.getUInt()
-        val dataOffsetAndControlBitAndReserved = buffer.getUShort()
-        dataOffset = (dataOffsetAndControlBitAndReserved shr 12).toInt() * 4
-        controlBit = ControlBit(dataOffsetAndControlBitAndReserved and 0b0000000000_111111)
-        window = buffer.getUShort()
-        checksum = buffer.getUShort()
-        urgentPointer = buffer.getUShort()
-
-        val optionSize = dataOffset - TCP_HEADER_SIZE
-        if (optionSize > 0) {
-            //options
-            optionsAndPadding = ByteArray(optionSize)
-            buffer.get(optionsAndPadding, 0, optionSize)
-
-        }
+    override fun toString(): String {
+        return "TcpHeader(sourcePort=$sourcePort, destinationPort=$destinationPort, sequenceNo=$sequenceNo, acknowledgmentNo=$acknowledgmentNo, dataOffset=$dataOffset, controlBit=$controlBit, window=$window, checksum=$checksum, urgentPointer=$urgentPointer,optionsAndPadding=${optionsAndPadding?.size})"
     }
 
-    override fun toString(): String {
-        return "TcpHeader(sourcePort=$sourcePort, destinationPort=$destinationPort, sequenceNo=$sequenceNo, acknowledgmentNo=$acknowledgmentNo, dataOffset=$dataOffset, controlBit=$controlBit, window=$window, checksum=$checksum, urgentPointer=$urgentPointer)"
+    override fun toByteBuffer(): ByteBuffer {
+        val buffer = ByteBuffer.allocate(dataOffset)
+        buffer.putUShort(sourcePort)
+        buffer.putUShort(destinationPort)
+        buffer.putUInt(sequenceNo)
+        buffer.putUInt(acknowledgmentNo)
+        val dataOffsetAndControlBitAndReserved =(dataOffset/4) shl 12 or controlBit.byteValue
+        buffer.putUShort(dataOffsetAndControlBitAndReserved)
+        buffer.putUShort(window)
+        buffer.putUShort(checksum)
+        buffer.putUShort(urgentPointer)
+        buffer.put(ByteArray(20))
+        buffer.flip()
+        return buffer
     }
 }

@@ -38,6 +38,7 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
 
     }
 
+
     override fun run() {
         PacketReader(vpnInterface).use { pReader ->
             PacketWriter(vpnInterface).use { pWriter ->
@@ -57,7 +58,7 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
                                 Log.d(TAG, "dest:${destIp}:${destPort}")
                                 val controlbit = tcpHeader.controlBit
                                 if (controlbit.hasSYN) {
-                                    pWriter.writeAckPacket()
+//                                    pWriter.writeAckPacket()
                                 } else if (controlbit.hasACK) {
 //                                    val myClient =
 //                                        Client.createAndConnect(destIp, destPort, aioSocket = true)
