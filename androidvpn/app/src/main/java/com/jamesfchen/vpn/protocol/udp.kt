@@ -63,9 +63,11 @@ data class UdpHeader(
 
                       User Datagram Header Format
      */
-    override fun toByteBuffer() = ByteBuffer.allocate(UDP_HEADER_SIZE)
+    override fun toByteBuffer() = ByteBuffer.allocate(UDP_HEADER_SIZE).apply {
         .putUShort(sourcePort)
         .putUShort(destPort)
         .putUShort(udpLen)
         .putUShort(checksum)
+        .flip()
+    }
 }
