@@ -21,6 +21,8 @@ import java.nio.ByteBuffer
 const val IP4_HEADER_SIZE = 20
 const val IP4_OPTION_HEADER_SIZE = 40
 const val IP4_HEADER_MAX_SIZE = 60
+const val IP4_PAYLOAD_MAX_SIZE = 1480
+const val IP4_SIZE = 1500
 
 //3bit
 enum class PrecedenceType(val typeValue: Int) {

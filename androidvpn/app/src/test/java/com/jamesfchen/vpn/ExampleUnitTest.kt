@@ -6,7 +6,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.net.InetAddress
 import java.nio.ByteBuffer
-import java.util.*
 
 /**
  * Example local unit test, which will execute on the development machine (host).
@@ -49,7 +48,7 @@ class ExampleUnitTest {
             IpVersion.V4,20, TypeOfService(0),totalLength = 60,
                     identification=30029,flags = IpFlag(0b010),fragmentOffset = 0,ttl = 64,protocol = Protocol.TCP,headerChecksum = 51905,sourceAddresses= InetAddress.getByName("10.0.0.2"),destinationAddresses = InetAddress.getByName("59.111.181.60")
         )
-        var tlHeader:TransportLayerHeader?=null
+        var tlHeader: TransportLayerHeader?=null
         if (ipHeader.protocol ==Protocol.TCP){
              tlHeader =TcpHeader(sourcePort = 41892,destinationPort = 443,sequenceNo = 256066452,acknowledgmentNo = 0,dataOffset = 40,controlBit = ControlBit(0b000010),window = 65535,checksum = 4570,urgentPointer = 0)
             tlHeader.optionsAndPadding=ByteArray(20)

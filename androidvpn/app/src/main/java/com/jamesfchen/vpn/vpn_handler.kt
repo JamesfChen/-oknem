@@ -4,6 +4,7 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.jamesfchen.vpn.protocol.*
 import okio.ByteString.Companion.toByteString
+import kotlin.random.Random.Default.Companion
 
 
 /**

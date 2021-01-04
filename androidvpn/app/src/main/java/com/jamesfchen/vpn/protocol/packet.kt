@@ -1,15 +1,11 @@
-package com.jamesfchen.vpn
+package com.jamesfchen.vpn.protocol
 
 import android.os.ParcelFileDescriptor
-import android.system.ErrnoException
-import android.system.Os
-import android.system.OsConstants
 import android.util.Log
-import com.jamesfchen.vpn.protocol.*
+import com.jamesfchen.vpn.Constants
 import java.io.Closeable
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 

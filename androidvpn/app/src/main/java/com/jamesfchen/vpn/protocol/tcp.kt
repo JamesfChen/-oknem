@@ -4,7 +4,6 @@ import android.os.*
 import android.util.Log
 import com.jamesfchen.vpn.*
 import java.nio.ByteBuffer
-import kotlin.experimental.and
 
 /**
  * Copyright ® $ 2017
@@ -16,6 +15,8 @@ import kotlin.experimental.and
 const val T_TAG = "${Constants.TAG}/tdp"
 const val TCP_HEADER_SIZE = 20
 const val TCP_OPTION_HEADER_SIZE = 40
+const val TCP_PAYLOAD_MAX_SIZE = 1460
+const val TCP_SIZE = 1480
 
 class TcpHandlerThread() : HandlerThread("tcp_thread") {
 

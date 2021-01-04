@@ -76,7 +76,7 @@ class BioSocketClient(val socket: Socket) : Client {
     override fun send(reqBuffer: ByteBuffer, block: (respBuffer: ByteBuffer) -> Unit) {
         try {
             outputStream.write(reqBuffer.array())
-            val ba = ByteArray(BUFFER_SIZE)
+            val ba = ByteArray(com.jamesfchen.vpn.protocol.BUFFER_SIZE)
             val len = inputStream.read(ba)
             val byteBuffer = if (len > 0) {
                 val wrap = ByteBuffer.wrap(ba)
@@ -108,7 +108,7 @@ class AioSocketClient(
 
         try {
             asynSocketChannel.write(reqBuffer).get()
-            val byteBuffer: ByteBuffer = ByteBuffer.allocate(BUFFER_SIZE)
+            val byteBuffer: ByteBuffer = ByteBuffer.allocate(com.jamesfchen.vpn.protocol.BUFFER_SIZE)
             asynSocketChannel.read(byteBuffer).get()
             byteBuffer.flip()
             block(byteBuffer)
@@ -126,7 +126,7 @@ class AioSocketClient(
 
         try {
             asynSocketChannel.write(reqBuffer, attachment, handler)
-            val byteBuffer: ByteBuffer = ByteBuffer.allocate(BUFFER_SIZE)
+            val byteBuffer: ByteBuffer = ByteBuffer.allocate(com.jamesfchen.vpn.protocol.BUFFER_SIZE)
             asynSocketChannel.read(byteBuffer, attachment, handler)
             byteBuffer.flip()
         } catch (e: Exception) {
