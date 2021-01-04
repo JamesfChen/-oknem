@@ -21,31 +21,8 @@ import java.nio.ByteBuffer
 const val U_TAG = "${Constants.TAG}/udp"
 const val UDP_HEADER_SIZE = 8
 
-class UdpHandlerThread() : HandlerThread("udp_thread") {
-
-}
-
-class UdpHandler(looper: Looper) : Handler(looper) {
-    override fun handleMessage(msg: Message) {
-        super.handleMessage(msg)
-        Log.d(U_TAG, "udp message")
-    }
-
-}
-
-fun ByteBuffer.getUdpHeader(): UdpHeader {
-    val sourPort = getUShort()
-    val destPort = getUShort()
-    val len = getUShort()
-    val checksum = getUShort()
-    return UdpHeader(sourPort, destPort, len, checksum)
-}
-
 data class UdpHeader(
-    val sourcePort: Int,
-    val destPort: Int,
-    val udpLen: Int,
-    val checksum: Int
+    val sourcePort: Int, val destPort: Int, val udpLen: Int, val checksum: Int
 ) : TransportLayerHeader {
     /*
 
@@ -64,10 +41,34 @@ data class UdpHeader(
                       User Datagram Header Format
      */
     override fun toByteBuffer() = ByteBuffer.allocate(UDP_HEADER_SIZE).apply {
-        .putUShort(sourcePort)
-        .putUShort(destPort)
-        .putUShort(udpLen)
-        .putUShort(checksum)
-        .flip()
+        putUShort(sourcePort)
+        putUShort(destPort)
+        putUShort(udpLen)
+        putUShort(checksum)
+        flip()
     }
 }
+
+fun ByteBuffer.getUdpHeader(): UdpHeader {
+    val sourPort = getUShort()
+    val destPort = getUShort()
+    val len = getUShort()
+    val checksum = getUShort()
+    return UdpHeader(sourPort, destPort, len, checksum)
+}
+
+class UdpHandlerThread() : HandlerThread("udp_thread") {
+
+}
+
+class UdpHandler(looper: Looper) : Handler(looper) {
+    override fun handleMessage(msg: Message) {
+        super.handleMessage(msg)
+        Log.d(U_TAG, "udp message")
+    }
+
+}
+
+
+
+

@@ -24,6 +24,95 @@ const val IP4_HEADER_MAX_SIZE = 60
 const val IP4_PAYLOAD_MAX_SIZE = 1480
 const val IP4_SIZE = 1500
 
+data class IpHeader(
+    val version: IpVersion,//4bits
+    val ihl: Int,//4bits 描述IP包头的长度,由固定长度20字节+可变长度40字节，以4bytes为一个单位，固定长度20字节的值为20/4=5，需要用4bits表示5即为0101
+    val typeOfService: TypeOfService,//8bits
+    val totalLength: Int,//16bits 可存65535大小
+    val identification: Int,//16bits 主机每发一个报文，加1，分片重组时会用到该字段。
+    val flags: IpFlag,//3bits
+    val fragmentOffset: Int,//13bits 分片重组时会用到该字段。表示较长的分组在分片后，某片在原分组中的相对位置。以8个字节为偏移单位
+    val ttl: Int,//8bits Time to Live
+    val protocol: Protocol,//8bits
+    val headerChecksum: Int,//16bits
+    val sourceAddresses: InetAddress,//32bits
+    val destinationAddresses: InetAddress//32bits
+) {
+    /*
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |Version|  IHL  |Type of Service|          Total Length         |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |         Identification        |Flags|      Fragment Offset    |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |  Time to Live |    Protocol   |         Header Checksum       |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |                       Source Address                          |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |                    Destination Address                        |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |                    Options                    |    Padding    |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+        Example Internet Datagram Header
+     */
+    override fun toString(): String {
+        return "\"ipheader\":{\"version\":$version,\"ihl\":$ihl,\"typeOfService\":$typeOfService,\"totalLength\":$totalLength," +
+                "\"identification\":$identification,\"flags\":$flags,\"fragmentOffset\":$fragmentOffset,\"ttl\":$ttl," +
+                "\"protocol\":$protocol,\"headerChecksum\":$headerChecksum," +
+                "\"sourceAddresses\":$sourceAddresses,\"destinationAddresses\":$destinationAddresses}"
+    }
+}
+fun ByteBuffer.getIpHeader(): IpHeader {
+    val buffer = this
+    val versionAndIhl = buffer.getUByte()
+    val version = IpVersion.parseIpVersion(versionAndIhl shr 4)
+    val ihl = (versionAndIhl and 0x0f).toInt() * 4
+    val typeOfService = TypeOfService(buffer.getUByte())
+    val totalLength = buffer.getUShort()
+    val identification = buffer.getUShort()
+    val flagsAndFragment = buffer.getUShort()
+    val flags = IpFlag(flagsAndFragment shr 13)
+    val fragmentOffset = flagsAndFragment and 0b0001_1111_1111_1111
+    val ttl = buffer.getUByte()
+    val protocol = Protocol.parseProtocol(buffer.getUByte())
+    val headerChecksum = buffer.getUShort()
+    val sourceAddresses = InetAddress.getByAddress(buffer.getBytes(4))
+    val destinationAddresses = InetAddress.getByAddress(buffer.getBytes(4))
+
+    val ipHeader = IpHeader(
+        version, ihl, typeOfService, totalLength,
+        identification, flags, fragmentOffset, ttl,
+        protocol, headerChecksum, sourceAddresses, destinationAddresses
+    )
+    val optionSize = ihl - IP4_HEADER_SIZE
+    if (optionSize > 0) {
+        //options
+
+    }
+    return ipHeader
+}
+
+fun IpHeader.toByteBuffer(): ByteBuffer {
+    val buffer = ByteBuffer.allocate(ihl)
+    val versionAndIhl = ((version.typeValue shl 4) or (ihl/4)).toByte()
+    buffer.putUByte(versionAndIhl)
+    buffer.putUByte(typeOfService.byteValue.toByte())
+    buffer.putUShort(totalLength)
+    buffer.putUShort(identification)
+    val flagsAndFragment = (flags.byteValue shl 13) or fragmentOffset
+    buffer.putUShort(flagsAndFragment)
+    buffer.putUByte(ttl.toByte())
+    buffer.putUByte(protocol.typeValue.toByte())
+    buffer.putUShort(headerChecksum)
+    buffer.put(sourceAddresses.address)
+    buffer.put(destinationAddresses.address)
+    buffer.flip()
+    return buffer
+}
+
+
 //3bit
 enum class PrecedenceType(val typeValue: Int) {
     /*
@@ -162,92 +251,4 @@ enum class IpVersion(val typeValue: Int) {
     }
 }
 
-fun ByteBuffer.getIpHeader(): IpHeader {
-    val buffer = this
-    val versionAndIhl = buffer.getUByte()
-    val version = IpVersion.parseIpVersion(versionAndIhl shr 4)
-    val ihl = (versionAndIhl and 0x0f).toInt() * 4
-    val typeOfService = TypeOfService(buffer.getUByte())
-    val totalLength = buffer.getUShort()
-    val identification = buffer.getUShort()
-    val flagsAndFragment = buffer.getUShort()
-    val flags = IpFlag(flagsAndFragment shr 13)
-    val fragmentOffset = flagsAndFragment and 0b0001_1111_1111_1111
-    val ttl = buffer.getUByte()
-    val protocol = Protocol.parseProtocol(buffer.getUByte())
-    val headerChecksum = buffer.getUShort()
-    val sourceAddresses = InetAddress.getByAddress(buffer.getBytes(4))
-    val destinationAddresses = InetAddress.getByAddress(buffer.getBytes(4))
-
-    val ipHeader = IpHeader(
-        version, ihl, typeOfService, totalLength,
-        identification, flags, fragmentOffset, ttl,
-        protocol, headerChecksum, sourceAddresses, destinationAddresses
-    )
-    val optionSize = ihl - IP4_HEADER_SIZE
-    if (optionSize > 0) {
-        //options
-
-    }
-    return ipHeader
-}
-
-fun IpHeader.toByteBuffer(): ByteBuffer {
-    val buffer = ByteBuffer.allocate(ihl)
-    val versionAndIhl = ((version.typeValue shl 4) or (ihl/4)).toByte()
-    buffer.putUByte(versionAndIhl)
-    buffer.putUByte(typeOfService.byteValue.toByte())
-    buffer.putUShort(totalLength)
-    buffer.putUShort(identification)
-    val flagsAndFragment = (flags.byteValue shl 13) or fragmentOffset
-    buffer.putUShort(flagsAndFragment)
-    buffer.putUByte(ttl.toByte())
-    buffer.putUByte(protocol.typeValue.toByte())
-    buffer.putUShort(headerChecksum)
-    buffer.put(sourceAddresses.address)
-    buffer.put(destinationAddresses.address)
-    buffer.flip()
-    return buffer
-}
-
-data class IpHeader(
-    val version: IpVersion,//4bits
-    val ihl: Int,//4bits 描述IP包头的长度,由固定长度20字节+可变长度40字节，以4bytes为一个单位，固定长度20字节的值为20/4=5，需要用4bits表示5即为0101
-    val typeOfService: TypeOfService,//8bits
-    val totalLength: Int,//16bits 可存65535大小
-    val identification: Int,//16bits 主机每发一个报文，加1，分片重组时会用到该字段。
-    val flags: IpFlag,//3bits
-    val fragmentOffset: Int,//13bits 分片重组时会用到该字段。表示较长的分组在分片后，某片在原分组中的相对位置。以8个字节为偏移单位
-    val ttl: Int,//8bits Time to Live
-    val protocol: Protocol,//8bits
-    val headerChecksum: Int,//16bits
-    val sourceAddresses: InetAddress,//32bits
-    val destinationAddresses: InetAddress//32bits
-) {
-    /*
-        0                   1                   2                   3
-        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |Version|  IHL  |Type of Service|          Total Length         |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |         Identification        |Flags|      Fragment Offset    |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |  Time to Live |    Protocol   |         Header Checksum       |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |                       Source Address                          |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |                    Destination Address                        |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        |                    Options                    |    Padding    |
-        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-        Example Internet Datagram Header
-     */
-    override fun toString(): String {
-        return "\"ipheader\":{\"version\":$version,\"ihl\":$ihl,\"typeOfService\":$typeOfService,\"totalLength\":$totalLength," +
-                "\"identification\":$identification,\"flags\":$flags,\"fragmentOffset\":$fragmentOffset,\"ttl\":$ttl," +
-                "\"protocol\":$protocol,\"headerChecksum\":$headerChecksum," +
-                "\"sourceAddresses\":$sourceAddresses,\"destinationAddresses\":$destinationAddresses}"
-    }
-}
 
