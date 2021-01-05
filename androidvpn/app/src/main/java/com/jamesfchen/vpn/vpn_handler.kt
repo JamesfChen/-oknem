@@ -4,6 +4,7 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.jamesfchen.vpn.protocol.*
 import okio.ByteString.Companion.toByteString
+import java.net.InetSocketAddress
 
 
 /**
@@ -42,7 +43,8 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
     override fun run() {
         PacketReader(vpnInterface).use { pReader ->
             PacketWriter(vpnInterface).use { pWriter ->
-
+                var syncCount = 0
+                var packId = 1
                 while (true) {
                     val packet = pReader.nextPacket()
                     if (packet != null) {
@@ -53,26 +55,49 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
 //                                tcpHandler.sendMessage(msg)
 //                                val packet = msg.obj as Packet
                                 val tcpHeader = packet.tlHeader as TcpHeader
+                                val sourceIp = packet.ipHeader.sourceAddresses.hostAddress
+                                val sourcePort = tcpHeader.sourcePort
                                 val destIp = packet.ipHeader.destinationAddresses.hostAddress
-                                val destPort = (tcpHeader).destinationPort
-                                Log.d(TAG, "dest:${destIp}:${destPort}")
-                                val conn = pool.get("$destIp:$destPort")
+                                val destPort = tcpHeader.destinationPort
+                                Log.d(
+                                    TAG,
+                                    "source:${sourceIp}:$sourcePort  dest:${destIp}:${destPort}"
+                                )
+                                val conn =
+                                    if (destPort != 443) pool.get("$destIp:$destPort") else null
                                 val controlbit = tcpHeader.controlBit
                                 if (controlbit.hasSYN) {
-                                    if (destPort == 443) {
-
+                                    if (syncCount == 0) {
+                                        val seqNo = 1L
+                                        val ack = tcpHeader.sequenceNo + 1
+                                        val srcAddr = InetSocketAddress(sourceIp, sourcePort),
+                                        val destAddr = InetSocketAddress(destIp, destPort),
+                                        val p = if (destPort != 443) {
+                                            createSynAndAckPacketOnHandshake(
+                                                srcAddr, destAddr, seqNo, ack, packId
+                                            )
+                                        } else {
+                                            createAckAndRSTPacketOnHandshake(
+                                                srcAddr, destAddr, seqNo, ack, packId
+                                            )
+                                        }
+                                        pWriter.writePacket(p)
+                                        ++packId
+                                    } else {
+                                        val ack = tcpHeader.sequenceNo + 1
                                     }
+                                    ++syncCount
                                 } else if (controlbit.hasACK) {//send data to remote
                                     Log.d(
                                         TAG,
                                         "req buffer remaining:${packet.payload?.remaining()}"
                                     )
                                     packet.payload?.let {
-                                        conn.send(it) { respBuffer ->
+                                        conn?.send(it) { respBuffer ->
                                             Log.d(
                                                 TAG,
                                                 "resp buffer size:${respBuffer.remaining()} ${
-                                                    respBuffer.toByteString().utf8()
+                                                respBuffer.toByteString().utf8()
                                                 }"
                                             )
 //                                        pWriter.writePacket()

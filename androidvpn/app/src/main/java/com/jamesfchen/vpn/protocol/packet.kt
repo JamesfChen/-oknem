@@ -6,8 +6,6 @@ import com.jamesfchen.vpn.Constants
 import java.io.Closeable
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.IOException
-import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -108,31 +106,23 @@ fun createTCPPacket(
 //fun createSynPacketOnHandshake():Packet{
 //}
 fun createAckAndRSTPacketOnHandshake(
-    sour: InetSocketAddress, dest: InetSocketAddress,
-    seq: Long, ack: Long, ipId: Int
+    sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long, ipId: Int
 ): Packet {
     return createTCPPacket(
-        sour, dest,
-        seq, ack,
-        ControlBit(ControlBit.RST or ControlBit.ACK),
-        ipId
+        sour, dest, seq, ack, ControlBit(ControlBit.RST or ControlBit.ACK), ipId
     )
 }
+
 fun createSynAndAckPacketOnHandshake(
-    sour: InetSocketAddress, dest: InetSocketAddress,
-    seq: Long, ack: Long, ipId: Int
+    sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long, ipId: Int
 ): Packet {
     return createTCPPacket(
-        sour, dest,
-        seq, ack,
-        ControlBit(ControlBit.SYN or ControlBit.ACK),
-        ipId
+        sour, dest, seq, ack, ControlBit(ControlBit.SYN or ControlBit.ACK), ipId
     )
 }
 
 fun createAckPacketOnHandshake(
-    sour: InetSocketAddress, dest: InetSocketAddress,
-    seq: Long, ack: Long, ipId: Int
+    sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long, ipId: Int
 ): Packet {
 //    return createTCPPacket(
 //        InetSocketAddress("10.0.0.2", 41892),

@@ -105,28 +105,6 @@ fun ByteBuffer.getTcpHeader(): TcpHeader {
     return tcph
 }
 
-class TcpHandlerThread() : HandlerThread("tcp_thread") {
-
-}
-
-class TcpHandler(looper: Looper) : Handler(looper) {
-    override fun handleMessage(msg: Message) {
-        super.handleMessage(msg)
-        Log.d(T_TAG, "tcp message")
-//        val packet = msg.obj as Packet
-//        val myClient = AioSocketClient()
-//        val destIp = packet.ipHeader.destinationAddresses.hostAddress
-//        val destPort = (packet.tlHeader as TcpHeader).destinationPort
-//        Log.d(T_TAG, "remote connect:${destIp}:${destPort}")
-//        myClient.connect(destIp, destPort)
-//        myClient.send(packet.buffer) { respBuffer ->
-//            Log.d(T_TAG, "buffer size:${respBuffer.remaining()}")
-//                                        pWriter.writePacket(Packet(header, respBuffer))
-//        }
-    }
-
-}
-
 data class ControlBit(val byteValue: Int) {
     companion object {
         const val URG = 0b100000
@@ -156,7 +134,81 @@ data class ControlBit(val byteValue: Int) {
     override fun toString(): String {
         return "ControlBit(hasURG=$hasURG, hasACK=$hasACK, hasPSH=$hasPSH, hasRST=$hasRST, hasSYN=$hasSYN, hasFIN=$hasFIN)"
     }
+}
 
+enum class TcpStatus {
+    /*
+                              +---------+ ---------\      active OPEN
+                              |  CLOSED |            \    -----------
+                              +---------+<---------\   \   create TCB
+                                |     ^              \   \  snd SYN
+                   passive OPEN |     |   CLOSE        \   \
+                   ------------ |     | ----------       \   \
+                    create TCB  |     | delete TCB         \   \
+                                V     |                      \   \
+                              +---------+            CLOSE    |    \
+                              |  LISTEN |          ---------- |     |
+                              +---------+          delete TCB |     |
+                   rcv SYN      |     |     SEND              |     |
+                  -----------   |     |    -------            |     V
+ +---------+      snd SYN,ACK  /       \   snd SYN          +---------+
+ |         |<-----------------           ------------------>|         |
+ |   SYN   |                    rcv SYN                     |   SYN   |
+ |   RCVD  |<-----------------------------------------------|   SENT  |
+ |         |                    snd ACK                     |         |
+ |         |------------------           -------------------|         |
+ +---------+   rcv ACK of SYN  \       /  rcv SYN,ACK       +---------+
+   |           --------------   |     |   -----------
+   |                  x         |     |     snd ACK
+   |                            V     V
+   |  CLOSE                   +---------+
+   | -------                  |  ESTAB  |
+   | snd FIN                  +---------+
+   |                   CLOSE    |     |    rcv FIN
+   V                  -------   |     |    -------
+ +---------+          snd FIN  /       \   snd ACK          +---------+
+ |  FIN    |<-----------------           ------------------>|  CLOSE  |
+ | WAIT-1  |------------------                              |   WAIT  |
+ +---------+          rcv FIN  \                            +---------+
+   | rcv ACK of FIN   -------   |                            CLOSE  |
+   | --------------   snd ACK   |                           ------- |
+   V        x                   V                           snd FIN V
+ +---------+                  +---------+                   +---------+
+ |FINWAIT-2|                  | CLOSING |                   | LAST-ACK|
+ +---------+                  +---------+                   +---------+
+   |                rcv ACK of FIN |                 rcv ACK of FIN |
+   |  rcv FIN       -------------- |    Timeout=2MSL -------------- |
+   |  -------              x       V    ------------        x       V
+    \ snd ACK                 +---------+delete TCB         +---------+
+     ------------------------>|TIME WAIT|------------------>| CLOSED  |
+                              +---------+                   +---------+
+
+                      TCP Connection State Diagram
+                               Figure 6.
+     */
+    LISTEN, SYN_SENT, SYN_RECEIVED, ESTABLISHED,
+    FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT, CLOSING, LAST_ACK, TIME_WAIT, CLOSED;
+}
+
+class TcpHandlerThread() : HandlerThread("tcp_thread") {
+
+}
+
+class TcpHandler(looper: Looper) : Handler(looper) {
+    override fun handleMessage(msg: Message) {
+        super.handleMessage(msg)
+        Log.d(T_TAG, "tcp message")
+//        val packet = msg.obj as Packet
+//        val myClient = AioSocketClient()
+//        val destIp = packet.ipHeader.destinationAddresses.hostAddress
+//        val destPort = (packet.tlHeader as TcpHeader).destinationPort
+//        Log.d(T_TAG, "remote connect:${destIp}:${destPort}")
+//        myClient.connect(destIp, destPort)
+//        myClient.send(packet.buffer) { respBuffer ->
+//            Log.d(T_TAG, "buffer size:${respBuffer.remaining()}")
+//                                        pWriter.writePacket(Packet(header, respBuffer))
+//        }
+    }
 
 }
 
