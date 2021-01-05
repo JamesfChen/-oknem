@@ -15,10 +15,7 @@ import com.jamesfchen.vpn.MyVpnService.Companion.ALLOW_PKG_NAME_LIST
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import okio.ByteString.Companion.toByteString
-import java.net.InetSocketAddress
 import java.nio.ByteBuffer
-import java.nio.channels.AsynchronousSocketChannel
-import java.nio.channels.CompletionHandler
 
 /**
  * A simple [Fragment] subclass as the default destination in the navigation.
@@ -36,10 +33,10 @@ class FirstFragment : Fragment() {
         return inflater.inflate(R.layout.fragment_first, container, false)
     }
 
-    lateinit var myClient: Client
+    lateinit var myClient: Connection
     fun send() {
 
-        myClient = Client.createAndConnect("192.168.9.103", 8889, aioSocket = false)
+        myClient = Connection.createAndConnect("192.168.9.103", 8889, aioSocket = false)
         Log.d(
             C_TAG, "socket remote:${myClient.remoteAddress} local:${myClient.localAddress}"
         )

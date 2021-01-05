@@ -128,6 +128,15 @@ class TcpHandler(looper: Looper) : Handler(looper) {
 }
 
 data class ControlBit(val byteValue: Int) {
+    companion object {
+        const val URG = 0b100000
+        const val ACK = 0b010000
+        const val PSH = 0b001000
+        const val RST = 0b000100
+        const val SYN = 0b000010
+        const val FIN = 0b000001
+    }
+
     /*
     Control Bits:  6 bits (from left to right):
 
@@ -138,12 +147,12 @@ data class ControlBit(val byteValue: Int) {
     SYN:  Synchronize sequence numbers
     FIN:  No more data from sender
      */
-    val hasURG: Boolean = ((byteValue and 0b100000) == 0b100000)
-    val hasACK: Boolean = ((byteValue and 0b010000) == 0b010000)
-    val hasPSH: Boolean = ((byteValue and 0b001000) == 0b001000)
-    val hasRST: Boolean = ((byteValue and 0b000100) == 0b000100)
-    val hasSYN: Boolean = ((byteValue and 0b000010) == 0b000010)
-    val hasFIN: Boolean = ((byteValue and 0b000001) == 0b000001)
+    val hasURG: Boolean = ((byteValue and URG) == URG)
+    val hasACK: Boolean = ((byteValue and ACK) == ACK)
+    val hasPSH: Boolean = ((byteValue and PSH) == PSH)
+    val hasRST: Boolean = ((byteValue and RST) == RST)
+    val hasSYN: Boolean = ((byteValue and SYN) == SYN)
+    val hasFIN: Boolean = ((byteValue and FIN) == FIN)
     override fun toString(): String {
         return "ControlBit(hasURG=$hasURG, hasACK=$hasACK, hasPSH=$hasPSH, hasRST=$hasRST, hasSYN=$hasSYN, hasFIN=$hasFIN)"
     }

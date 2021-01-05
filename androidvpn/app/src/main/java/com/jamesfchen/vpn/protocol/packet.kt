@@ -6,6 +6,9 @@ import com.jamesfchen.vpn.Constants
 import java.io.Closeable
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
@@ -78,6 +81,97 @@ data class Packet(
     }
 }
 
+fun createTCPPacket(
+    sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long,
+    controlBit: ControlBit, ipId: Int
+): Packet {
+    val ipHeader = IpHeader(
+        IpVersion.V4, 20,
+        TypeOfService(0), totalLength = 60,
+        identification = ipId, flags = IpFlag(0b010), fragmentOffset = 0,
+        ttl = 64,
+        protocol = Protocol.TCP,
+        headerChecksum = 0,
+        sourceAddresses = sour.address, destinationAddresses = dest.address
+    )
+    val tlHeader = TcpHeader(
+        sourcePort = sour.port, destinationPort = dest.port,
+        sequenceNo = seq, acknowledgmentNo = ack,
+        dataOffset = 40, controlBit = controlBit,
+        window = 65535, checksum = 0, urgentPointer = 0
+    )
+    tlHeader.optionsAndPadding = ByteArray(20)
+
+    return Packet(ipHeader, tlHeader, ByteBuffer.wrap(byteArrayOf()))
+}
+
+//fun createSynPacketOnHandshake():Packet{
+//}
+fun createAckAndRSTPacketOnHandshake(
+    sour: InetSocketAddress, dest: InetSocketAddress,
+    seq: Long, ack: Long, ipId: Int
+): Packet {
+    return createTCPPacket(
+        sour, dest,
+        seq, ack,
+        ControlBit(ControlBit.RST or ControlBit.ACK),
+        ipId
+    )
+}
+fun createSynAndAckPacketOnHandshake(
+    sour: InetSocketAddress, dest: InetSocketAddress,
+    seq: Long, ack: Long, ipId: Int
+): Packet {
+    return createTCPPacket(
+        sour, dest,
+        seq, ack,
+        ControlBit(ControlBit.SYN or ControlBit.ACK),
+        ipId
+    )
+}
+
+fun createAckPacketOnHandshake(
+    sour: InetSocketAddress, dest: InetSocketAddress,
+    seq: Long, ack: Long, ipId: Int
+): Packet {
+//    return createTCPPacket(
+//        InetSocketAddress("10.0.0.2", 41892),
+//        InetSocketAddress("59.111.181.60", 443),
+//        1, 1,
+//        ControlBit(ControlBit.SYN or ControlBit.ACK),
+//        1
+//    )
+    return createTCPPacket(
+        sour, dest,
+        seq, ack,
+        ControlBit(ControlBit.ACK),
+        ipId
+    )
+}
+
+fun createAckPacketOnWave(
+    sour: InetSocketAddress, dest: InetSocketAddress,
+    seq: Long, ack: Long, ipId: Int
+): Packet {
+    return createTCPPacket(
+        sour, dest,
+        seq, ack,
+        ControlBit(ControlBit.ACK),
+        ipId
+    )
+}
+
+fun createFinPacketOnWave(
+    sour: InetSocketAddress, dest: InetSocketAddress,
+    seq: Long, ack: Long, ipId: Int
+): Packet {
+    return createTCPPacket(
+        sour, dest,
+        seq, ack,
+        ControlBit(ControlBit.FIN),
+        ipId
+    )
+}
 
 class PacketReader constructor(vpnInterface: ParcelFileDescriptor) : AutoCloseable, Closeable {
     private val buffer = ByteBuffer.allocate(BUFFER_SIZE)
@@ -109,6 +203,7 @@ class PacketReader constructor(vpnInterface: ParcelFileDescriptor) : AutoCloseab
     }
 
 }
+
 
 class PacketWriter(vpnInterface: ParcelFileDescriptor) : AutoCloseable, Closeable {
     private val buffer = ByteBuffer.allocate(BUFFER_SIZE)

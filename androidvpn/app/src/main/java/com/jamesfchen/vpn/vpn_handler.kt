@@ -4,7 +4,6 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.jamesfchen.vpn.protocol.*
 import okio.ByteString.Companion.toByteString
-import kotlin.random.Random.Default.Companion
 
 
 /**
@@ -27,6 +26,7 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
 
     val tcpHandler: TcpHandler
     val udpHandler: UdpHandler
+    val pool: ConnectionPool = ConnectionPool()
 
     init {
         val tcpThread = TcpHandlerThread()
@@ -38,7 +38,6 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
         udpHandler = UdpHandler(udpThread.looper)
 
     }
-
 
     override fun run() {
         PacketReader(vpnInterface).use { pReader ->
@@ -57,26 +56,28 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
                                 val destIp = packet.ipHeader.destinationAddresses.hostAddress
                                 val destPort = (tcpHeader).destinationPort
                                 Log.d(TAG, "dest:${destIp}:${destPort}")
+                                val conn = pool.get("$destIp:$destPort")
                                 val controlbit = tcpHeader.controlBit
                                 if (controlbit.hasSYN) {
-//                                    pWriter.writeAckPacket()
-                                } else if (controlbit.hasACK) {
-//                                    val myClient =
-//                                        Client.createAndConnect(destIp, destPort, aioSocket = true)
-//                                    Log.d(
-//                                        TAG,
-//                                        "socket remote:${myClient.remoteAddress} local:${myClient.localAddress}"
-//                                    )
-//                                    Log.d(TAG, "req buffer remaining:${packet.buffer.remaining()}")
-//                                    myClient.send(packet.buffer) { respBuffer ->
-//                                        Log.d(
-//                                            TAG,
-//                                            "resp buffer size:${respBuffer.remaining()} ${
-//                                                respBuffer.toByteString().utf8()
-//                                            }"
-//                                        )
-////                                        pWriter.writePacket()
-//                                    }
+                                    if (destPort == 443) {
+
+                                    }
+                                } else if (controlbit.hasACK) {//send data to remote
+                                    Log.d(
+                                        TAG,
+                                        "req buffer remaining:${packet.payload?.remaining()}"
+                                    )
+                                    packet.payload?.let {
+                                        conn.send(it) { respBuffer ->
+                                            Log.d(
+                                                TAG,
+                                                "resp buffer size:${respBuffer.remaining()} ${
+                                                    respBuffer.toByteString().utf8()
+                                                }"
+                                            )
+//                                        pWriter.writePacket()
+                                        }
+                                    }
                                 } else if (controlbit.hasFIN) {
 
                                 } else if (controlbit.hasPSH) {

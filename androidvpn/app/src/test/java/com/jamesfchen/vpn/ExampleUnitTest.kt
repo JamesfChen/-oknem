@@ -67,7 +67,7 @@ class ExampleUnitTest {
 
     @Test
     fun addition_isCorrect() {
-        val myClient = Client.createAndConnect("192.168.9.103", 8889, aioSocket = true)
+        val myClient = Connection.createAndConnect("192.168.9.103", 8889, aioSocket = true)
 //        myClient.connect("localhost", 8889)
         myClient.send(ByteBuffer.wrap("aaaaaaaaaaaaaaaaaaaaaa".toByteArray())) { respBuffer ->
             println(
