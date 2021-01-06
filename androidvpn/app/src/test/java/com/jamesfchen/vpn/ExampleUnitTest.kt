@@ -17,6 +17,26 @@ import java.nio.channels.SelectionKey.OP_READ
  */
 class ExampleUnitTest {
     @Test
+    fun testHankshark(){
+        val lines = javaClass.classLoader?.getResourceAsStream("ipbin.txt")?.reader()?.readLines()
+            ?: listOf()
+        val ba = ByteBuffer.allocate(BUFFER_SIZE)
+        for (line in lines) {
+            if (line == "\\n\\r\\n\\r") {
+                println()
+                println("read end")
+                break
+            }
+            line.split(",").forEach { e: String ->
+                print(e)
+                ba.put(e.toInt(radix = 16).toByte())
+            }
+        }
+        ba.flip()
+        println("${ba?.remaining()} ${ba.toByteString().utf8()}")
+
+    }
+    @Test
     fun testByteBUfferExt() {
         val b = ByteBuffer.allocate(1024)
         b.put('4'.toByte())
