@@ -219,6 +219,7 @@ enum class Protocol(val typeValue: Int) {
     UDP(17),
     IGRP(88),
     OSPF(89),
+    IPv6_ICMP(58),
     MplsInIp(137);
 
     companion object {

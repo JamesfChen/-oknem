@@ -4,8 +4,11 @@ import com.jamesfchen.vpn.protocol.*
 import okio.ByteString.Companion.toByteString
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.io.FileInputStream
 import java.net.InetAddress
 import java.nio.ByteBuffer
+import java.nio.channels.*
+import java.nio.channels.SelectionKey.OP_READ
 
 /**
  * Example local unit test, which will execute on the development machine (host).
@@ -14,7 +17,7 @@ import java.nio.ByteBuffer
  */
 class ExampleUnitTest {
     @Test
-    fun testByteBUfferExt(){
+    fun testByteBUfferExt() {
         val b = ByteBuffer.allocate(1024)
         b.put('4'.toByte())
         b.putUByte(270.toByte())
@@ -40,28 +43,49 @@ class ExampleUnitTest {
 //        print(b.get())
         assertEquals(4, 2 + 2)
     }
+
     @Test
     fun createPacket() {
         // Packet(ipHeader="ipheader":{"version":V4,"ihl":20,"typeOfService":{"precedenceType":ROUTINE,"d":0,"t":0,"r":0},"totalLength":60,"identification":30029,"flags":{"df":1,"mf":0},"fragmentOffset":0,"ttl":64,"protocol":TCP,"headerChecksum":51905,"sourceAddresses":/10.0.0.2,"destinationAddresses":/59.111.181.60}, tlHeader=TcpHeader(sourcePort=41892, destinationPort=443, sequenceNo=256066452, acknowledgmentNo=0, dataOffset=40, controlBit=ControlBit(hasURG=false, hasACK=false, hasPSH=false, hasRST=false, hasSYN=true, hasFIN=false), window=65535, checksum=4570, urgentPointer=0))
         //2021-01-04 17:13:00.778 29418-29621/? D/cjfvpn/vpn_thread: dest:59.111.181.60:443
         val ipHeader = IpHeader(
-            IpVersion.V4,20, TypeOfService(0),totalLength = 60,
-                    identification=30029,flags = IpFlag(0b010),fragmentOffset = 0,ttl = 64,protocol = Protocol.TCP,headerChecksum = 51905,sourceAddresses= InetAddress.getByName("10.0.0.2"),destinationAddresses = InetAddress.getByName("59.111.181.60")
+            IpVersion.V4,
+            20,
+            TypeOfService(0),
+            totalLength = 60,
+            identification = 30029,
+            flags = IpFlag(0b010),
+            fragmentOffset = 0,
+            ttl = 64,
+            protocol = Protocol.TCP,
+            headerChecksum = 51905,
+            sourceAddresses = InetAddress.getByName("10.0.0.2"),
+            destinationAddresses = InetAddress.getByName("59.111.181.60")
         )
-        var tlHeader: TransportLayerHeader?=null
-        if (ipHeader.protocol ==Protocol.TCP){
-             tlHeader =TcpHeader(sourcePort = 41892,destinationPort = 443,sequenceNo = 256066452,acknowledgmentNo = 0,dataOffset = 40,controlBit = ControlBit(0b000010),window = 65535,checksum = 4570,urgentPointer = 0)
-            tlHeader.optionsAndPadding=ByteArray(20)
+        var tlHeader: TransportLayerHeader? = null
+        if (ipHeader.protocol == Protocol.TCP) {
+            tlHeader = TcpHeader(
+                sourcePort = 41892,
+                destinationPort = 443,
+                sequenceNo = 256066452,
+                acknowledgmentNo = 0,
+                dataOffset = 40,
+                controlBit = ControlBit(0b000010),
+                window = 65535,
+                checksum = 4570,
+                urgentPointer = 0
+            )
+            tlHeader.optionsAndPadding = ByteArray(20)
 
         }
-        val p= Packet(ipHeader,tlHeader,ByteBuffer.wrap(byteArrayOf()))
+        val p = Packet(ipHeader, tlHeader, ByteBuffer.wrap(byteArrayOf()))
         println(p)
         val pp = p.toByteBuffer().getPacket()
 
         println(pp)
-        assertEquals(p.payload,pp.payload)
-        assertEquals(p.tlHeader,pp.tlHeader)
-        assertEquals(p.ipHeader,pp.ipHeader)
+        assertEquals(p.payload, pp.payload)
+        assertEquals(p.tlHeader, pp.tlHeader)
+        assertEquals(p.ipHeader, pp.ipHeader)
 
     }
 
@@ -76,7 +100,6 @@ class ExampleUnitTest {
                 }"
             )
         }
-        Byte.MAX_VALUE
         val lines = javaClass.classLoader?.getResourceAsStream("ipbin.txt")?.reader()?.readLines()
             ?: listOf()
         val ba = ByteBuffer.allocate(BUFFER_SIZE)
@@ -93,7 +116,30 @@ class ExampleUnitTest {
         }
         ba.flip()
         println("${ba?.remaining()} ${ba.toByteString().utf8()}")
+        val pip = Pipe.open()
+        val selector = Selector.open()
+        val sChannel: SelectableChannel = pip.source()
+//        val channel: FileChannel = FileInputStream("ipbin.txt").channel
+        sChannel.configureBlocking(false)
+        val selectionKey = sChannel.register(selector, SelectionKey.OP_READ)
+//        selectionKey.cancel()
+        while (true){
+            val readyChannels=selector.selectNow()
+            if (readyChannels==0) continue
+            val selectedKeys = selector.selectedKeys()
+            val iterator = selectedKeys.iterator()
+            while (iterator.hasNext()){
+                val key = iterator.next()
+                if (key.isAcceptable){//a connection was accepted by a ServerSocketChannel
+                }else if (key.isConnectable){//a connection was established with a remote server
+                }else if (key.isReadable){//a channel is ready for reading
+                }else if (key.isWritable){//a channel is ready for writing
+                }
+                iterator.remove()
+            }
 
+
+        }
 //        val ba= byteArrayOf(0x7f,0x12,0b11111111)
 //        println(
 //            String.format(

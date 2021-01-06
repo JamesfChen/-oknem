@@ -169,7 +169,7 @@ class PacketReader constructor(vpnInterface: ParcelFileDescriptor) : AutoCloseab
     private val vpnInputChannel: FileChannel = FileInputStream(vpnfd).channel
     private val vpnInput = FileInputStream(vpnfd)
     override fun close() {
-        Log.d(P_TAG, "packet reader closed")
+        Log.e(P_TAG, "packet reader closed")
         vpnInputChannel.close()
     }
 
@@ -182,9 +182,9 @@ class PacketReader constructor(vpnInterface: ParcelFileDescriptor) : AutoCloseab
             }
             buffer.flip()
             buffer.limit(len)
-            Log.d(P_TAG, "buffer:${buffer}  len:${len} ")
+//            Log.d(P_TAG, "buffer:${buffer}  len:${len} ")
             val packet = buffer.getPacket()
-            Log.d(P_TAG, "read buffet: $packet")
+//            Log.d(P_TAG, "read buffet: $packet")
             return packet
         } catch (e: Exception) {
             Log.d(P_TAG, Log.getStackTraceString(e))
@@ -201,7 +201,7 @@ class PacketWriter(vpnInterface: ParcelFileDescriptor) : AutoCloseable, Closeabl
     private val vpnOutputChannel: FileChannel = FileOutputStream(vpnfd).channel
 
     override fun close() {
-        Log.d(P_TAG, "packet writer closed")
+        Log.e(P_TAG, "packet writer closed")
         vpnOutputChannel.close()
     }
 

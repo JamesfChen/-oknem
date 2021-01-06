@@ -6,14 +6,16 @@ import androidx.annotation.WorkerThread
 import com.jamesfchen.vpn.Constants.TAG
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import okhttp3.internal.threadFactory
 import okio.ByteString
+import okio.IOException
+import java.net.ConnectException
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousSocketChannel
 import java.nio.channels.CompletionHandler
+import java.nio.channels.SocketChannel
 import java.util.ArrayDeque
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -28,8 +30,9 @@ import java.util.concurrent.TimeUnit
  */
 const val C_TAG = "${Constants.TAG}/cli"
 
-interface Connection {
+abstract class  Connection {
     companion object {
+        @Throws(ConnectException::class)
         fun createAndConnect(ip: String, port: Int, aioSocket: Boolean): Connection {
             if (aioSocket) {
                 val asynSocketChannel: AsynchronousSocketChannel = AsynchronousSocketChannel.open()
@@ -38,7 +41,7 @@ interface Connection {
             } else {
                 val socket = Socket()
                 socket.connect(InetSocketAddress(ip, port))
-                socket.keepAlive =true
+                socket.keepAlive = true
                 return BioSocketConnection(socket)
             }
         }
@@ -58,11 +61,12 @@ interface Connection {
     }
 
     // -- asynchronous operations --
-
-    val remoteAddress: InetSocketAddress?
-    val localAddress: InetSocketAddress?
-    fun send(reqBuffer: ByteBuffer, block: (respBuffer: ByteBuffer) -> Unit)
-    fun <A> send(
+    var syncCount = 0
+    var packId = 1
+    abstract val remoteAddress: InetSocketAddress?
+    abstract val localAddress: InetSocketAddress?
+    abstract fun send(reqBuffer: ByteBuffer, block: (respBuffer: ByteBuffer) -> Unit)
+    open fun <A> send(
         reqBuffer: ByteBuffer,
         handler: CompletionHandler<Int, A?>,
         attachment: A? = null
@@ -70,7 +74,7 @@ interface Connection {
     }
 }
 
-class BioSocketConnection(val socket: Socket) : Connection {
+class BioSocketConnection(val socket: Socket) : Connection() {
     val outputStream = socket.getOutputStream()
     val inputStream = socket.getInputStream()
     override var remoteAddress: InetSocketAddress? =
@@ -103,7 +107,7 @@ class BioSocketConnection(val socket: Socket) : Connection {
 
 class AioSocketConnection(
     val asynSocketChannel: AsynchronousSocketChannel
-) : Connection {
+) : Connection() {
     companion object {
         const val AIO_TAG = "${C_TAG}/AioSocket"
     }
@@ -162,8 +166,9 @@ class MyWebSocketListener : WebSocketListener() {
     }
 }
 
-class ConnectionPool() {
+class ConnectionPool {
     companion object {
+        const val TAG = "${C_TAG}/conn_pool"
         private val executer = ThreadPoolExecutor(
             0,
             Int.MAX_VALUE,
@@ -180,28 +185,23 @@ class ConnectionPool() {
         connections.add(conn)
     }
 
-    fun get(key: String): Connection {
+    @Throws(ConnectException::class)
+    @Synchronized
+    fun get(key: String): List<Any?> {
         for (c in connections) {
-            if (c.remoteAddress != null && "${c.remoteAddress!!.address}:${c.remoteAddress!!.port}" == key) {
-                Log.d(
-                    TAG,
-                    "socket remote:${c.remoteAddress} local:${c.localAddress}"
-                )
-                return c
+            if (c.remoteAddress != null && "${c.remoteAddress!!.address.hostAddress}:${c.remoteAddress!!.port}" == key) {
+                return listOf(c, true)
             }
 
         }
-        val (destIp,destPort) = key.split(":")
+        val (destIp, destPort) = key.split(":")
         val myClient = Connection.createAndConnect(
             destIp,
             destPort.toInt(),
-            aioSocket = true
-        )
-        Log.d(
-            TAG,
-            "socket remote:${myClient.remoteAddress} local:${myClient.localAddress}"
+            aioSocket = false
         )
         connections.add(myClient)
-        return myClient
+
+        return listOf(myClient, false)
     }
 }
