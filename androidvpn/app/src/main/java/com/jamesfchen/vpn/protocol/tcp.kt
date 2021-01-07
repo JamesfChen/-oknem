@@ -7,6 +7,7 @@ import android.os.Message
 import android.util.Log
 import com.jamesfchen.vpn.*
 import java.nio.ByteBuffer
+import java.util.*
 
 /**
  * Copyright ® $ 2017
@@ -23,9 +24,9 @@ const val TCP_SIZE = 1480
 
 data class TcpHeader(
     val sourcePort: Int, val destinationPort: Int,
-    val sequenceNo: Long, val acknowledgmentNo: Long, val dataOffset: Int,
+    val sequenceNo: Long, val acknowledgmentNo: Long, val dataOffset: Int,//3bits
     //    val reserved: Int
-    val controlBit: ControlBit, val window: Int, val checksum: Int, val urgentPointer: Int
+    val controlBit: ControlBit, val window: Int, val urgentPointer: Int
 ) : TransportLayerHeader {
     /*
        0                   1                   2                   3
@@ -49,22 +50,27 @@ data class TcpHeader(
        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      */
     var optionsAndPadding: ByteArray? = null
+    var checksum: Int = 0//ip pseudo header + tcp header + tcp payload
+    val headerLen = dataOffset shl  2
     override fun toString(): String {
-        return "TcpHeader(sourcePort=$sourcePort, destinationPort=$destinationPort, sequenceNo=$sequenceNo, acknowledgmentNo=$acknowledgmentNo, dataOffset=$dataOffset, controlBit=$controlBit, window=$window, checksum=$checksum, urgentPointer=$urgentPointer,optionsAndPadding=${optionsAndPadding?.size})"
+        return "TcpHeader(sourcePort=$sourcePort, destinationPort=$destinationPort, sequenceNo=$sequenceNo, acknowledgmentNo=$acknowledgmentNo, dataOffset=$dataOffset,headerLen:$headerLen, controlBit=$controlBit, window=$window, checksum=$checksum, urgentPointer=$urgentPointer,optionsAndPadding=${Arrays.toString(optionsAndPadding)})"
     }
 
     override fun toByteBuffer(): ByteBuffer {
-        val buffer = ByteBuffer.allocate(dataOffset)
+        val buffer = ByteBuffer.allocate(headerLen)
         buffer.putUShort(sourcePort)
         buffer.putUShort(destinationPort)
         buffer.putUInt(sequenceNo)
         buffer.putUInt(acknowledgmentNo)
-        val dataOffsetAndControlBitAndReserved = (dataOffset / 4) shl 12 or controlBit.byteValue
+        val dataOffsetAndControlBitAndReserved = dataOffset shl 12 or controlBit.byteValue
         buffer.putUShort(dataOffsetAndControlBitAndReserved)
         buffer.putUShort(window)
         buffer.putUShort(checksum)
         buffer.putUShort(urgentPointer)
-        buffer.put(ByteArray(20))
+        val optionSize = headerLen - TCP_HEADER_SIZE
+        if (optionSize > 0) {
+            buffer.put(optionsAndPadding,0,optionSize)
+        }
         buffer.flip()
         return buffer
     }
@@ -77,7 +83,7 @@ fun ByteBuffer.getTcpHeader(): TcpHeader {
     val sequenceNo = buffer.getUInt()
     val acknowledgmentNo = buffer.getUInt()
     val dataOffsetAndControlBitAndReserved = buffer.getUShort()
-    val dataOffset = (dataOffsetAndControlBitAndReserved shr 12).toInt() * 4
+    val dataOffset = (dataOffsetAndControlBitAndReserved shr 12).toInt()
     val controlBit = ControlBit(dataOffsetAndControlBitAndReserved and 0b0000000000_111111)
     val window = buffer.getUShort()
     val checksum = buffer.getUShort()
@@ -91,10 +97,10 @@ fun ByteBuffer.getTcpHeader(): TcpHeader {
         dataOffset,
         controlBit,
         window,
-        checksum,
         urgentPointer
     )
-    val optionSize = dataOffset - TCP_HEADER_SIZE
+    tcph.checksum = checksum
+    val optionSize = tcph.headerLen - TCP_HEADER_SIZE
     if (optionSize > 0) {
         //options
         val optionsAndPadding = ByteArray(optionSize)
@@ -102,6 +108,7 @@ fun ByteBuffer.getTcpHeader(): TcpHeader {
         tcph.optionsAndPadding = optionsAndPadding
 
     }
+
     return tcph
 }
 

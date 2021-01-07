@@ -109,7 +109,7 @@ class PacketDispatcher {
                             }
                             pWriter.writePacket(p)
                             Log.d(TAG, "$key syncCount$syncCount packId:$packId\npacket:$p")
-//                            ++packId
+                            ++packId
                         } else {
                             val ack = tcpHeader.sequenceNo + 1
                             Log.d(TAG, "$key syncCount$syncCount packId:$packId\n")

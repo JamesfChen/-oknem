@@ -1,10 +1,11 @@
 package com.jamesfchen.vpn.protocol
 
-import android.nfc.Tag
 import android.util.Log
 import com.jamesfchen.vpn.*
+import com.jamesfchen.vpn.Constants.TAG
 import java.net.InetAddress
 import java.nio.ByteBuffer
+import java.util.*
 
 /**
  * Copyright ® $ 2017
@@ -34,7 +35,6 @@ data class IpHeader(
     val fragmentOffset: Int,//13bits 分片重组时会用到该字段。表示较长的分组在分片后，某片在原分组中的相对位置。以8个字节为偏移单位
     val ttl: Int,//8bits Time to Live
     val protocol: Protocol,//8bits
-    val headerChecksum: Int,//16bits
     val sourceAddresses: InetAddress,//32bits
     val destinationAddresses: InetAddress//32bits
 ) {
@@ -57,18 +57,62 @@ data class IpHeader(
 
         Example Internet Datagram Header
      */
+    var headerChecksum: Int = 0//16bits
+    val headerLen = ihl shl 2
+
+    //    var ipHeaderByteBuffer: ByteBuffer? = null
+    fun computeHeaderChecksum(): Int {
+        var ipHeaderLen = headerLen
+        var sum = 0
+        val buffer = toByteBuffer()
+        while (ipHeaderLen > 0) {
+            val e = buffer.getUShort()
+            sum += e
+            ipHeaderLen -= 2
+        }
+        while (sum shr 16 > 0) {
+            sum = (sum and 0xFFFF) + (sum shr 16)
+        }
+        sum = 0xff_ff - sum
+        return sum
+    }
+
+    fun toByteBuffer(): ByteBuffer {
+//        if (ipHeaderByteBuffer != null) {
+//            ipHeaderByteBuffer?.flip()
+//            return ipHeaderByteBuffer
+//        }
+        val buffer = ByteBuffer.allocate(headerLen)
+        val versionAndIhl = ((version.typeValue shl 4) or ihl).toByte()
+        buffer.putUByte(versionAndIhl)
+        buffer.putUByte(typeOfService.byteValue.toByte())
+        buffer.putUShort(totalLength)
+        buffer.putUShort(identification)
+        val flagsAndFragment = (flags.byteValue shl 13) or fragmentOffset
+        buffer.putUShort(flagsAndFragment)
+        buffer.putUByte(ttl.toByte())
+        buffer.putUByte(protocol.typeValue.toByte())
+        buffer.putUShort(headerChecksum)
+        buffer.put(sourceAddresses.address)
+        buffer.put(destinationAddresses.address)
+        buffer.flip()
+//        ipHeaderByteBuffer = buffer
+        return buffer
+    }
+
     override fun toString(): String {
-        return "\"ipheader\":{\"version\":$version,\"ihl\":$ihl,\"typeOfService\":$typeOfService,\"totalLength\":$totalLength," +
+        return "\"ipheader\":{\"version\":$version,\"ihl\":$ihl,\"headerLen\":$headerLen,\"typeOfService\":$typeOfService,\"totalLength\":$totalLength," +
                 "\"identification\":$identification,\"flags\":$flags,\"fragmentOffset\":$fragmentOffset,\"ttl\":$ttl," +
                 "\"protocol\":$protocol,\"headerChecksum\":$headerChecksum," +
                 "\"sourceAddresses\":$sourceAddresses,\"destinationAddresses\":$destinationAddresses}"
     }
 }
+
 fun ByteBuffer.getIpHeader(): IpHeader {
     val buffer = this
     val versionAndIhl = buffer.getUByte()
     val version = IpVersion.parseIpVersion(versionAndIhl shr 4)
-    val ihl = (versionAndIhl and 0x0f).toInt() * 4
+    val ihl = (versionAndIhl and 0x0f).toInt()
     val typeOfService = TypeOfService(buffer.getUByte())
     val totalLength = buffer.getUShort()
     val identification = buffer.getUShort()
@@ -84,34 +128,21 @@ fun ByteBuffer.getIpHeader(): IpHeader {
     val ipHeader = IpHeader(
         version, ihl, typeOfService, totalLength,
         identification, flags, fragmentOffset, ttl,
-        protocol, headerChecksum, sourceAddresses, destinationAddresses
+        protocol, sourceAddresses, destinationAddresses
     )
-    val optionSize = ihl - IP4_HEADER_SIZE
+    ipHeader.headerChecksum = headerChecksum
+    val optionSize = ipHeader.headerLen - IP4_HEADER_SIZE
     if (optionSize > 0) {
         //options
 
     }
+    //check sum
+    val computeHeaderChecksum = ipHeader.computeHeaderChecksum()
+    println("ip header checksum : compute=$computeHeaderChecksum $headerChecksum")
+    if (computeHeaderChecksum == 0) {
+    }
     return ipHeader
 }
-
-fun IpHeader.toByteBuffer(): ByteBuffer {
-    val buffer = ByteBuffer.allocate(ihl)
-    val versionAndIhl = ((version.typeValue shl 4) or (ihl/4)).toByte()
-    buffer.putUByte(versionAndIhl)
-    buffer.putUByte(typeOfService.byteValue.toByte())
-    buffer.putUShort(totalLength)
-    buffer.putUShort(identification)
-    val flagsAndFragment = (flags.byteValue shl 13) or fragmentOffset
-    buffer.putUShort(flagsAndFragment)
-    buffer.putUByte(ttl.toByte())
-    buffer.putUByte(protocol.typeValue.toByte())
-    buffer.putUShort(headerChecksum)
-    buffer.put(sourceAddresses.address)
-    buffer.put(destinationAddresses.address)
-    buffer.flip()
-    return buffer
-}
-
 
 //3bit
 enum class PrecedenceType(val typeValue: Int) {
