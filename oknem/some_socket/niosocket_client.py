@@ -2,8 +2,7 @@ import asyncio
 
 
 async def tcp_echo_client(ip, port):
-    reader, writer = await asyncio.open_connection(
-        ip, port)
+    reader, writer = await asyncio.open_connection(ip, port)
     message = 'CONNECT interface.music.163.com:443 HTTP/1.1'
     print(f'Send: {message!r}')
     writer.write(message.encode())

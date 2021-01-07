@@ -2,6 +2,7 @@
 import asyncio
 import threading
 from aiohttp import web
+import socket
 port = 8889
 
 
@@ -25,11 +26,14 @@ def start_server():
 # kill tcp process :sudo lsof -i tcp:9000
 def main():
     server_loop = asyncio.new_event_loop()
+    server_loop.create_server
     print('listening localhost:%d' % port)
     asyncio.set_event_loop(server_loop)
     runner = start_server()
     server_loop.run_until_complete(runner.setup())
-    site = web.TCPSite(runner, '0.0.0.0', port)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(('localhost', port))
+    site = web.SockSite(runner, sock)
     server_loop.run_until_complete(site.start())
     server_loop.run_forever()
 
