@@ -6,6 +6,7 @@ import androidx.annotation.WorkerThread
 import com.jamesfchen.vpn.Constants.TAG
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okhttp3.internal.closeQuietly
 import okio.ByteString
 import okio.IOException
 import java.net.ConnectException
@@ -66,12 +67,9 @@ abstract class  Connection {
     abstract val remoteAddress: InetSocketAddress?
     abstract val localAddress: InetSocketAddress?
     abstract fun send(reqBuffer: ByteBuffer, block: (respBuffer: ByteBuffer) -> Unit)
-    open fun <A> send(
-        reqBuffer: ByteBuffer,
-        handler: CompletionHandler<Int, A?>,
-        attachment: A? = null
-    ) {
-    }
+    open  fun <A> send(reqBuffer: ByteBuffer,
+        handler: CompletionHandler<Int, A?>, attachment: A? = null){}
+    abstract fun close()
 }
 
 class BioSocketConnection(val socket: Socket) : Connection() {
@@ -101,6 +99,9 @@ class BioSocketConnection(val socket: Socket) : Connection() {
         } catch (e: Exception) {
             Log.d(BIO_TAG, Log.getStackTraceString(e))
         }
+    }
+    override fun close(){
+        socket.close()
     }
 
 }
@@ -148,6 +149,9 @@ class AioSocketConnection(
         } catch (e: Exception) {
             Log.d(AIO_TAG, Log.getStackTraceString(e))
         }
+    }
+   override fun close(){
+        asynSocketChannel.close()
     }
 }
 

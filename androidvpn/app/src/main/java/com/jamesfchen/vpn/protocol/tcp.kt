@@ -197,26 +197,4 @@ enum class TcpStatus {
     FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT, CLOSING, LAST_ACK, TIME_WAIT, CLOSED;
 }
 
-class TcpHandlerThread() : HandlerThread("tcp_thread") {
-
-}
-
-class TcpHandler(looper: Looper) : Handler(looper) {
-    override fun handleMessage(msg: Message) {
-        super.handleMessage(msg)
-        Log.d(T_TAG, "tcp message")
-//        val packet = msg.obj as Packet
-//        val myClient = AioSocketClient()
-//        val destIp = packet.ipHeader.destinationAddresses.hostAddress
-//        val destPort = (packet.tlHeader as TcpHeader).destinationPort
-//        Log.d(T_TAG, "remote connect:${destIp}:${destPort}")
-//        myClient.connect(destIp, destPort)
-//        myClient.send(packet.buffer) { respBuffer ->
-//            Log.d(T_TAG, "buffer size:${respBuffer.remaining()}")
-//                                        pWriter.writePacket(Packet(header, respBuffer))
-//        }
-    }
-
-}
-
 

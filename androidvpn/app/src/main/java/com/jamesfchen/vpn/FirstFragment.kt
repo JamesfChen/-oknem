@@ -93,7 +93,7 @@ class FirstFragment : Fragment() {
         if (requestCode == VPN_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             activity?.let {
                 val realIntent = Intent(activity, MyVpnService::class.java)
-                realIntent.putExtra(ALLOW_PKG_NAME_LIST, arrayListOf("com.netease.cloudmusic"))
+                realIntent.putExtra(ALLOW_PKG_NAME_LIST, arrayListOf("com.netease.cloudmusic","com.hawksjamesf.spacecraft.debug"))
                 MyVpnService.start(it, realIntent)
             }
         }

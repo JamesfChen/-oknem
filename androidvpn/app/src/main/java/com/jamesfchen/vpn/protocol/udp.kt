@@ -57,18 +57,5 @@ fun ByteBuffer.getUdpHeader(): UdpHeader {
     return UdpHeader(sourPort, destPort, len, checksum)
 }
 
-class UdpHandlerThread() : HandlerThread("udp_thread") {
-
-}
-
-class UdpHandler(looper: Looper) : Handler(looper) {
-    override fun handleMessage(msg: Message) {
-        super.handleMessage(msg)
-        Log.d(U_TAG, "udp message")
-    }
-
-}
-
-
 
 
