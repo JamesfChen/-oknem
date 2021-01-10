@@ -138,10 +138,10 @@ fun ByteBuffer.getIpHeader(): IpHeader {
 
     }
     //check sum
-    val computeHeaderChecksum = ipHeader.computeHeaderChecksum()
-    println("ip header checksum : compute=$computeHeaderChecksum $headerChecksum")
-    if (computeHeaderChecksum == 0) {
-    }
+//    val computeHeaderChecksum = ipHeader.computeHeaderChecksum()
+//    println("ip header checksum : compute=$computeHeaderChecksum $headerChecksum")
+//    if (computeHeaderChecksum == 0) {
+//    }
     return ipHeader
 }
 

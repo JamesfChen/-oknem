@@ -60,7 +60,7 @@ data class Packet(
             totalBuffer.put(it)
         }
         payload?.let {
-            totalBuffer.put(it)
+            totalBuffer.put(it.duplicate())
         }
         totalBuffer.flip()
         return totalBuffer
@@ -106,8 +106,8 @@ data class Packet(
         while (sum shr 16 > 0) {
             sum = (sum and 0xFFFF) + (sum shr 16)
         }
-//        sum = 0xff_ff - sum//取反   sum.inv()取反有问题
-        sum=sum.inv()
+        sum = 0xff_ff - sum//取反   sum.inv()取反有问题
+//        sum=sum.inv()
         return sum
     }
 }

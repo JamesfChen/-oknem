@@ -56,14 +56,14 @@ class ExampleUnitTest {
     fun testCreatePacket() {
         // Packet(ipHeader="ipheader":{"version":V4,"ihl":20,"typeOfService":{"precedenceType":ROUTINE,"d":0,"t":0,"r":0},"totalLength":60,"identification":30029,"flags":{"df":1,"mf":0},"fragmentOffset":0,"ttl":64,"protocol":TCP,"headerChecksum":51905,"sourceAddresses":/10.0.0.2,"destinationAddresses":/59.111.181.60}, tlHeader=TcpHeader(sourcePort=41892, destinationPort=443, sequenceNo=256066452, acknowledgmentNo=0, dataOffset=40, controlBit=ControlBit(hasURG=false, hasACK=false, hasPSH=false, hasRST=false, hasSYN=true, hasFIN=false), window=65535, checksum=4570, urgentPointer=0))
         //2021-01-04 17:13:00.778 29418-29621/? D/cjfvpn/vpn_thread: dest:59.111.181.60:443
-        var p = createSynAndAckPacketOnHandshake(
-            InetSocketAddress("10.0.0.2", 780),
-            InetSocketAddress("59.111.181.60", 8080),
-            234324,
-            234234234,
-            0
-        )
-        println(p)
+//        var p = createSynAndAckPacketOnHandshake(
+//            InetSocketAddress("59.111.181.60", 780),
+//            InetSocketAddress("10.0.0.2", 8080),
+//            234324,
+//            234234234,
+//            0
+//        )
+//        println(p)
 //        val pp = p.toByteBuffer().getPacket()
 //
 //        println(pp)
@@ -71,9 +71,8 @@ class ExampleUnitTest {
 //        assertEquals(p.tlHeader, pp.tlHeader)
 //        assertEquals(p.ipHeader, pp.ipHeader)
 //        println("ipv4/hankshark/sync_ack.txt")
-//        val p =getPacket("ipv4/hankshark/sync_ack.txt")
-//        println(p)
-        println((20 shl 2).toByte())
+        val p =getPacket("ipv4/ack0_request.txt")
+        println(p)
 //            println(p.ipHeader.toByteBuffer().getIpHeader())
 
     }

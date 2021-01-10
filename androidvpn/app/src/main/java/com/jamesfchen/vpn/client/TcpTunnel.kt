@@ -17,11 +17,11 @@ import java.util.concurrent.ArrayBlockingQueue
  * @since: Jan/08/2021  Fri
  */
 class TcpTunnel(val pWriter: PacketWriter) : Runnable {
-    var isusable:Boolean=false
+    var isusable: Boolean = false
     var syncCount = 0
     var packId = 1
-    var seqNo=1
-    var ackNo=0
+    var seqNo = 1L
+    var ackNo = 0L
 
     val donotConnect = mutableSetOf<String>()
     val connected = mutableSetOf<String>()
@@ -76,40 +76,47 @@ class TcpTunnel(val pWriter: PacketWriter) : Runnable {
             val controlbit = tcpHeader.controlBit
             if (controlbit.hasSYN) {
                 if (syncCount == 0) {
-                    val seqNo = 1L
-                    val ack = tcpHeader.sequenceNo + 1
+                    ackNo = tcpHeader.sequenceNo + 1
+                    ++seqNo
                     val p = if (destPort != 443) {
                         createSynAndAckPacketOnHandshake(
-                             destAddr,srcAddr, seqNo, ack, packId
+                            destAddr, srcAddr, 1L, ackNo, packId
                         )
                     } else {
                         createAckAndRSTPacketOnHandshake(
-                             destAddr,srcAddr, seqNo, ack, packId
+                            destAddr, srcAddr, 1L, ackNo, packId
                         )
                     }
                     pWriter.writePacket(p)
-                            Log.d(TAG, "$key syncCount$syncCount packId:$packId\npacket:$p")
+                    //Log.d(TAG, "$key syncCount$syncCount packId:$packId\npacket:$p")
                     ++packId
                 } else {
-                    val ack = tcpHeader.sequenceNo + 1
+                     ackNo = tcpHeader.sequenceNo + 1
 //                            Log.d(TAG, "$key syncCount$syncCount packId:$packId\n")
                 }
 
                 ++syncCount
             } else if (controlbit.hasACK) {//send data to remote
-                Log.e(
+                Log.d(
                     TAG,
-                    "req buffer remaining:${packet.payload?.remaining()}"
+                    "req buffer ${packet}"
                 )
+                val payloadSize = packet.payload?.remaining()?:0
+                if (payloadSize == 0 || ackNo>=payloadSize+seqNo) {
+                    return
+                }
+                ackNo = seqNo
+                ackNo +=payloadSize
                 packet.payload?.let {
                     conn?.send(it) { respBuffer ->
                         Log.e(
                             TAG,
                             "resp buffer size:${respBuffer.remaining()} ${
-                                respBuffer.toByteString().utf8()
+                            respBuffer.toByteString().utf8()
                             }"
                         )
-//                                pWriter.writePacket()
+//               c                 pWriter.writePacket()
+//                        seqNo +
 //
                     }
                 }
