@@ -3,6 +3,7 @@ package com.jamesfchen.vpn.protocol
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.jamesfchen.vpn.Constants
+import com.jamesfchen.vpn.Constants.sInterceptIps
 import com.jamesfchen.vpn.getUByte
 import com.jamesfchen.vpn.getUShort
 import okhttp3.internal.toHexString
@@ -36,7 +37,6 @@ Protocol Layering
 
 const val P_TAG = "${Constants.TAG}/packet"
 const val BUFFER_SIZE = 16384//65535=2^15-1
-
 //const val BUFFER_SIZE = 65535//65535=2^15-1
 interface TransportLayerHeader {
     fun toByteBuffer(): ByteBuffer
@@ -45,10 +45,10 @@ interface TransportLayerHeader {
 data class Packet(
     val ipHeader: IpHeader,
     var tlHeader: TransportLayerHeader? = null,
-    val payload: ByteBuffer? = null
+    val payload: ByteArray? = null
 ) {
     override fun toString(): String {
-        return "Packet(ipHeader=$ipHeader, tlHeader=$tlHeader,payload:${payload?.remaining()})"
+        return "Packet(ipHeader=$ipHeader, tlHeader=$tlHeader,payload:${payload?.size})"
     }
 
     fun toByteBuffer(): ByteBuffer {
@@ -60,7 +60,7 @@ data class Packet(
             totalBuffer.put(it)
         }
         payload?.let {
-            totalBuffer.put(it.duplicate())
+            totalBuffer.put(ByteBuffer.wrap(it))
         }
         totalBuffer.flip()
         return totalBuffer
@@ -81,7 +81,7 @@ data class Packet(
         var sum = 0
         var len = when (ipHeader.protocol) {
             Protocol.TCP -> {
-                (tlHeader as TcpHeader).headerLen + (payload?.remaining() ?: 0)
+                (tlHeader as TcpHeader).headerLen + (payload?.size ?: 0)
             }
             Protocol.UDP -> {
                 8
@@ -111,157 +111,28 @@ data class Packet(
         return sum
     }
 }
+
 fun ByteBuffer.getPacket(): Packet {
     val ipHeader = getIpHeader()
     var tlHeader: TransportLayerHeader? = null
+    var tlLen = 0
     when (ipHeader.protocol) {
         Protocol.TCP -> {
             tlHeader = getTcpHeader()
+            tlLen = (tlHeader as? TcpHeader)?.headerLen ?: 0
         }
         Protocol.UDP -> {
             tlHeader = getUdpHeader()
+            tlLen = UDP_HEADER_SIZE
         }
         else -> {
         }
     }
-    val p = Packet(ipHeader, tlHeader, this)
-    val computeChecksum = p.computeChecksum()
-    if (computeChecksum == 0) {//从流中读取到一个packet，作为接受者，计算checksum应该为0
 
-    }
-    val cs = (tlHeader as? TcpHeader)?.checksum ?: 0
-    println("tcp checksum : compute=$computeChecksum ${cs}")
+    val p = Packet(ipHeader, tlHeader, this.array().copyOfRange(ipHeader.headerLen + tlLen,ipHeader.totalLength))
+//    val computeChecksum = p.computeChecksum()
+//    if (computeChecksum == 0) {//从流中读取到一个packet，作为接受者，计算checksum应该为0
+//
+//    }
     return p
-}
-
-fun createTCPPacket(
-    sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long,
-    controlBit: ControlBit, ipId: Int, payload: ByteBuffer? = null
-): Packet {
-    val tlHeader = TcpHeader(
-        sourcePort = sour.port, destinationPort = dest.port,
-        sequenceNo = seq, acknowledgmentNo = ack,
-        dataOffset = 5, controlBit = controlBit,
-        window = 65535, urgentPointer = 0
-    )
-    val totalLength = IP4_HEADER_SIZE + tlHeader.headerLen + (payload?.remaining() ?: 0)
-
-    val ipHeader = IpHeader(
-        IpVersion.V4, 5,
-        TypeOfService(0), totalLength = totalLength,
-        identification = ipId, flags = IpFlag(0b010/*不分片*/), fragmentOffset = 0,
-        ttl = 64,
-        protocol = Protocol.TCP,
-        sourceAddresses = sour.address, destinationAddresses = dest.address
-    )
-    ipHeader.headerChecksum = ipHeader.computeHeaderChecksum()
-
-    val p = Packet(ipHeader, tlHeader, ByteBuffer.wrap(byteArrayOf()))
-    tlHeader.checksum = p.computeChecksum()
-    return p
-}
-
-//fun createSynPacketOnHandshake():Packet{
-//}
-fun createAckAndRSTPacketOnHandshake(
-    sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long, ipId: Int
-): Packet {
-    return createTCPPacket(
-        sour, dest, seq, ack, ControlBit(ControlBit.RST or ControlBit.ACK), ipId
-    )
-}
-
-fun createSynAndAckPacketOnHandshake(
-    sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long, ipId: Int
-): Packet {
-    return createTCPPacket(
-        sour, dest, seq, ack, ControlBit(ControlBit.SYN or ControlBit.ACK), ipId
-    )
-}
-
-fun createAckPacketOnHandshake(
-    sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long, ipId: Int
-): Packet {
-    return createTCPPacket(
-        sour, dest,
-        seq, ack,
-        ControlBit(ControlBit.ACK),
-        ipId
-    )
-}
-
-fun createAckPacketOnWave(
-    sour: InetSocketAddress, dest: InetSocketAddress,
-    seq: Long, ack: Long, ipId: Int
-): Packet {
-    return createTCPPacket(
-        sour, dest,
-        seq, ack,
-        ControlBit(ControlBit.ACK),
-        ipId
-    )
-}
-
-fun createFinPacketOnWave(
-    sour: InetSocketAddress, dest: InetSocketAddress,
-    seq: Long, ack: Long, ipId: Int
-): Packet {
-    return createTCPPacket(
-        sour, dest,
-        seq, ack,
-        ControlBit(ControlBit.FIN),
-        ipId
-    )
-}
-
-class PacketReader constructor(vpnInterface: ParcelFileDescriptor) : AutoCloseable, Closeable {
-    private val buffer = ByteBuffer.allocate(BUFFER_SIZE)
-    private val vpnfd = vpnInterface.fileDescriptor
-    private val vpnInputChannel: FileChannel = FileInputStream(vpnfd).channel
-    private val vpnInput = FileInputStream(vpnfd)
-    override fun close() {
-        Log.e(P_TAG, "packet reader closed")
-        vpnInputChannel.close()
-    }
-
-    fun nextPacket(): Packet? {
-        try {
-            buffer.clear()
-            val len = vpnInputChannel.read(buffer)
-            if (len == 0) {
-                return null
-            }
-            buffer.flip()
-            buffer.limit(len)
-//            Log.d(P_TAG, "buffer:${buffer}  len:${len} ")
-            val packet = buffer.getPacket()
-//            Log.d(P_TAG, "read buffet: $packet")
-            return packet
-        } catch (e: Exception) {
-            Log.d(P_TAG, Log.getStackTraceString(e))
-            return null
-        }
-    }
-
-}
-
-
-class PacketWriter(vpnInterface: ParcelFileDescriptor) : AutoCloseable, Closeable {
-    private val buffer = ByteBuffer.allocate(BUFFER_SIZE)
-    private val vpnfd = vpnInterface.fileDescriptor
-    private val vpnOutputChannel: FileChannel = FileOutputStream(vpnfd).channel
-
-    override fun close() {
-        Log.e(P_TAG, "packet writer closed")
-        vpnOutputChannel.close()
-    }
-
-    fun writePacket(p: Packet) {
-        try {
-            vpnOutputChannel.write(p.toByteBuffer())
-        } catch (e: Exception) {
-            Log.d(P_TAG, Log.getStackTraceString(e))
-        }
-    }
-
 }

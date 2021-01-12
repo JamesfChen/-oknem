@@ -3,10 +3,12 @@ package com.jamesfchen.vpn
 import android.os.*
 import android.util.Log
 import com.jamesfchen.vpn.client.PacketDispatcher
-import com.jamesfchen.vpn.client.TcpTunnel
 import com.jamesfchen.vpn.protocol.*
-import okio.ByteString.Companion.toByteString
-import java.net.InetSocketAddress
+import java.io.Closeable
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -29,73 +31,73 @@ import java.util.concurrent.TimeUnit
 class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thread") {
     companion object {
         const val TAG = "${Constants.TAG}/dispatcher"
+        val executor = ThreadPoolExecutor(
+            0, Int.MAX_VALUE, 60L, TimeUnit.SECONDS,
+            SynchronousQueue(), threadFactory("vpn connection pool", true)
+        )
     }
 
-    val tcpHandler: TcpHandler
-    val udpHandler: UdpHandler
     val dispatcher: PacketDispatcher
-    private val executor = ThreadPoolExecutor(
-        0, Int.MAX_VALUE, 60L, TimeUnit.SECONDS,
-        SynchronousQueue(), threadFactory("vpn connection pool", true)
-    )
-    private val tcpTunnels = ConcurrentHashMap<String, TcpTunnel>()
-    init {
-        val tcpThread = TcpHandlerThread()
-        tcpThread.start()
-        val udpThread = TcpHandlerThread()
-        udpThread.start()
 
-        tcpHandler = TcpHandler(tcpThread.looper)
-        udpHandler = UdpHandler(udpThread.looper)
+    private val answerers = ConcurrentHashMap<String, TcpAnswerer>()
+    val answerHandler:AnswerHandler
+    private var mPWriter:PacketWriter?=null
+    inner class AnswerHandler(looper: Looper) : Handler(looper) {
+        override fun handleMessage(msg: Message) {
+            super.handleMessage(msg)
+            val key = msg.obj as String
+            val (destIp, destPort) = key.split(":")
+            answerers.remove(destIp)
+//            ConnectionPool.remove(key)
+        }
+    }
+
+    init {
         dispatcher = PacketDispatcher()
+        val aThread = AnswerHandlerThread()
+        aThread.start()
+        answerHandler=AnswerHandler(aThread.looper)
 
     }
 
     override fun run() {
         PacketReader(vpnInterface).use { pReader ->
             PacketWriter(vpnInterface).use { pWriter ->
+                mPWriter=pWriter
                 while (true) {
                     val packet = pReader.nextPacket()
                     if (packet != null) {
-                        when (packet.ipHeader.protocol) {
-                            Protocol.TCP -> {
-                                val msg = Message.obtain()
-                                msg.obj = packet
-                                tcpHandler.sendMessage(msg)
-                            }
-                            Protocol.UDP -> {
-                                udpHandler.sendEmptyMessage(1)
-                            }
-                            else -> {
-//                                Log.d(TAG, "not find type :${packet.ipHeader.protocol}")
-                            }
-                        }
-
 //                        dispatcher.dispatch(pWriter, packet)
-
                         val destIp = packet.ipHeader.destinationAddresses.hostAddress
                         when (packet.ipHeader.protocol) {
                             Protocol.TCP -> {
-                                var tunnel = tcpTunnels[destIp]
-                                if (tunnel == null) {
-                                    tunnel = TcpTunnel(pWriter)
-                                    tunnel.isusable= false
-                                    tcpTunnels[destIp] = tunnel
-                                    executor.execute(tunnel)
-                                }else{
-                                    tunnel.isusable= true
+                                var answer = answerers[destIp]
+                                if (answer == null) {
+                                    answer = TcpAnswerer(pWriter,answerHandler,answerers)
+                                    answer.isusable = false
+                                    answerers[destIp] = answer
+                                    executor.execute(answer)
+                                } else {
+                                    answer.isusable = true
                                 }
-//                                Log.d(TAG, ">>>$destIp tcpTunnel :isusable ${tunnel.isusable} tcpTunnels totalsize:${tcpTunnels.size}")
-                                tunnel.dispatch(packet)
+                                answer.dispatch(packet)
                             }
-                            Protocol.UDP -> { }
-                            Protocol.ICMP -> { }
-                            Protocol.IGMP -> { }
-                            Protocol.IP -> { }
-                            Protocol.IGRP -> { }
-                            Protocol.OSPF -> { }
-                            Protocol.IPv6_ICMP -> { }
-                            Protocol.MplsInIp -> { }
+                            Protocol.UDP -> {
+                            }
+                            Protocol.ICMP -> {
+                            }
+                            Protocol.IGMP -> {
+                            }
+                            Protocol.IP -> {
+                            }
+                            Protocol.IGRP -> {
+                            }
+                            Protocol.OSPF -> {
+                            }
+                            Protocol.IPv6_ICMP -> {
+                            }
+                            Protocol.MplsInIp -> {
+                            }
                             else -> {
                                 Log.d(TAG, "not find type :${packet.ipHeader.protocol}")
                             }
@@ -111,6 +113,9 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
 
 }
 
+class AnswerHandlerThread() : HandlerThread("answer_event_thread") {
+
+}
 class TcpHandlerThread() : HandlerThread("tcp_event_thread") {
 
 }
@@ -139,4 +144,57 @@ class UdpHandler(looper: Looper) : Handler(looper) {
     }
 
 }
+
+
+class PacketReader constructor(vpnInterface: ParcelFileDescriptor) : AutoCloseable, Closeable {
+    private val buffer = ByteBuffer.allocate(16384)
+    private val vpnfd = vpnInterface.fileDescriptor
+    private val vpnInputChannel: FileChannel = FileInputStream(vpnfd).channel
+    private val vpnInput = FileInputStream(vpnfd)
+    override fun close() {
+        Log.e(P_TAG, "packet reader closed")
+        vpnInputChannel.close()
+    }
+
+    fun nextPacket(): Packet? {
+        try {
+            buffer.clear()
+            val len = vpnInputChannel.read(buffer)
+            if (len == 0) {
+                return null
+            }
+            buffer.flip()
+            buffer.limit(len)
+//            Log.d(P_TAG, "buffer:${buffer}  len:${len} ")
+            val packet = buffer.getPacket()
+//            Log.d(P_TAG, "read buffet: $packet")
+            return packet
+        } catch (e: Exception) {
+            Log.d(P_TAG, Log.getStackTraceString(e))
+            return null
+        }
+    }
+
+}
+
+
+class PacketWriter(vpnInterface: ParcelFileDescriptor) : AutoCloseable, Closeable {
+    private val vpnfd = vpnInterface.fileDescriptor
+    private val vpnOutputChannel: FileChannel = FileOutputStream(vpnfd).channel
+
+    override fun close() {
+        Log.e(P_TAG, "packet writer closed")
+        vpnOutputChannel.close()
+    }
+
+    fun writePacket(p: Packet) {
+        try {
+            vpnOutputChannel.write(p.toByteBuffer())
+        } catch (e: Exception) {
+            Log.d(P_TAG, Log.getStackTraceString(e))
+        }
+    }
+
+}
+
 

@@ -1,7 +1,9 @@
 package com.jamesfchen.vpn.client
 
 import android.util.Log
+import com.jamesfchen.vpn.TcpAnswerer
 import com.jamesfchen.vpn.Constants
+import com.jamesfchen.vpn.PacketWriter
 import com.jamesfchen.vpn.protocol.*
 import com.jamesfchen.vpn.threadFactory
 import java.util.concurrent.ConcurrentHashMap
@@ -25,7 +27,7 @@ class PacketDispatcher {
         0, Int.MAX_VALUE, 60L, TimeUnit.SECONDS,
         SynchronousQueue(), threadFactory("vpn connection pool", true)
     )
-    private val tunnels = ConcurrentHashMap<String, TcpTunnel>()
+    private val tunnels = ConcurrentHashMap<String, TcpAnswerer>()
 
     fun dispatch(pWriter: PacketWriter, packet: Packet) {
         val destIp = packet.ipHeader.destinationAddresses.hostAddress
@@ -33,11 +35,11 @@ class PacketDispatcher {
             Protocol.TCP -> {
                 var a = tunnels[destIp]
                 if (a == null) {
-                    a = TcpTunnel(pWriter)
-                    tunnels[destIp] = a
-                    executor.execute(a)
+//                    a = Answerer(pWriter)
+//                    tunnels[destIp] = a
+//                    executor.execute(a)
                 }
-                a.dispatch(packet)
+//                a.dispatch(packet)
             }
             Protocol.UDP -> { }
             Protocol.ICMP -> { }

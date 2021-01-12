@@ -1,11 +1,15 @@
 package com.jamesfchen.vpn
 
+import com.jamesfchen.vpn.client.Connection
 import com.jamesfchen.vpn.protocol.*
 import okhttp3.internal.toHexString
 import okio.ByteString.Companion.toByteString
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
@@ -13,6 +17,7 @@ import java.nio.channels.Pipe
 import java.nio.channels.SelectableChannel
 import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
+import java.util.*
 
 /**
  * Example local unit test, which will execute on the development machine (host).
@@ -20,6 +25,7 @@ import java.nio.channels.Selector
  * See [testing documentation](http://d.android.com/tools/testing).
  */
 class ExampleUnitTest {
+     val BUFFER_SIZE = 16384//65535=2^15-1
     fun getPacket(file: String): Packet {
         val reader = javaClass.classLoader?.getResourceAsStream(file)?.reader()
         val ca = CharArray(2)
@@ -32,6 +38,7 @@ class ExampleUnitTest {
         ba.flip()
         return ba.getPacket()
     }
+
     @Test
     fun testHankshark() {
         javaClass.classLoader?.getResource("ipv4")?.file?.let {
@@ -71,7 +78,7 @@ class ExampleUnitTest {
 //        assertEquals(p.tlHeader, pp.tlHeader)
 //        assertEquals(p.ipHeader, pp.ipHeader)
 //        println("ipv4/hankshark/sync_ack.txt")
-        val p =getPacket("ipv4/ack0_request.txt")
+        val p = getPacket("ipv4/ack0_request.txt")
         println(p)
 //            println(p.ipHeader.toByteBuffer().getIpHeader())
 
@@ -118,15 +125,35 @@ class ExampleUnitTest {
 
     @Test
     fun addition_isCorrect() {
-//        val myClient = Connection.createAndConnect("192.168.9.103", 8889, aioSocket = true)
-////        myClient.connect("localhost", 8889)
-//        myClient.send(ByteBuffer.wrap("aaaaaaaaaaaaaaaaaaaaaa".toByteArray())) { respBuffer ->
-//            println(
-//                "cjfvpn resp buffer size:${respBuffer.remaining()} ${
-//                    respBuffer.toByteString().utf8()
-//                }"
-//            )
-//        }
+        val wrap = ByteBuffer.wrap("123456789".toByteArray())
+        val total = wrap.remaining()
+        println(Arrays.toString(wrap.array()))
+        wrap.position(4)
+        println(Arrays.toString(wrap.array()))
+        println(Arrays.toString( wrap.array().copyOfRange(4,total)))
+
+        println(Arrays.toString(wrap.array().sliceArray(4 until  total)))
+        val fis =
+            FileInputStream(File("/Users/jf.chen/Spacecraft/oknem/androidvpn/request.txt"))
+        val b = ByteArray(BUFFER_SIZE)
+        val byteArrayOutputStream = ByteArrayOutputStream()
+        var l = -1
+        while (true) {
+            l = fis.read(b)
+            if (l == -1) {
+                break
+            }
+            byteArrayOutputStream.write(b)
+        }
+        val myClient = Connection.createAndConnect("59.111.181.155", 80, aioSocket = false)
+//        myClient.connect("localhost", 8889)
+        myClient.send(b) { respBuffer ->
+            println(
+                "cjfvpn resp buffer size:${respBuffer.remaining()} ${
+                    respBuffer.toByteString().utf8()
+                }"
+            )
+        }
         val lines = javaClass.classLoader?.getResourceAsStream("ipbin.txt")?.reader()?.readLines()
             ?: listOf()
         val ba = ByteBuffer.allocate(BUFFER_SIZE)

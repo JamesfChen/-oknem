@@ -74,7 +74,7 @@ abstract class AbsPermissionsActivity : AppCompatActivity() {
                     sb.append(p)
                     sb.append('\n')
                 }
-                Toast.makeText(this, "need permission:$sb", Toast.LENGTH_LONG).show()
+//                Toast.makeText(this, "need permission:$sb", Toast.LENGTH_LONG).show()
             }
         } else {
             onRequestPermissionsResult()
