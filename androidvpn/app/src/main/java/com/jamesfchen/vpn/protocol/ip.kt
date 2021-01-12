@@ -73,8 +73,8 @@ data class IpHeader(
         while (sum shr 16 > 0) {
             sum = (sum and 0xFFFF) + (sum shr 16)
         }
-//        sum = 0xff_ff - sum
-        sum=sum.inv()
+        sum = 0xff_ff - sum
+//        sum=sum.inv()
         return sum
     }
 

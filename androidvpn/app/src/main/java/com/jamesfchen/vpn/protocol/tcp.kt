@@ -139,7 +139,32 @@ data class ControlBit(val byteValue: Int) {
     val hasSYN: Boolean = ((byteValue and SYN) == SYN)
     val hasFIN: Boolean = ((byteValue and FIN) == FIN)
     override fun toString(): String {
-        return "ControlBit(hasURG=$hasURG, hasACK=$hasACK, hasPSH=$hasPSH, hasRST=$hasRST, hasSYN=$hasSYN, hasFIN=$hasFIN)"
+        val a = StringBuffer()
+        if (hasURG) {
+            a.append("hasURG=$hasURG")
+            a.append(",")
+        }
+        if (hasACK) {
+            a.append("hasACK=$hasACK")
+            a.append(",")
+        }
+        if (hasPSH) {
+            a.append("hasPSH=$hasPSH")
+            a.append(",")
+        }
+        if (hasRST) {
+            a.append("hasRST=$hasRST")
+            a.append(",")
+        }
+        if (hasSYN) {
+            a.append("hasSYN=$hasSYN")
+            a.append(",")
+        }
+        if (hasFIN) {
+            a.append("hasFIN=$hasFIN")
+            a.append(",")
+        }
+        return "ControlBit($a)"
     }
 }
 
