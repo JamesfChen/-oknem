@@ -105,22 +105,27 @@ class MyVpnService : VpnService() {
 
     private fun createVpn(intent: Intent?): ParcelFileDescriptor? {
         intent ?: return null
+        val builder = Builder()
         try {
-            val builder = Builder()
-            try {
-                builder.apply {
-                    addAddress(VPN_ADDRESS, 32)
-                    addRoute(VPN_ROUTE, 0)
-                    intent.getStringArrayListExtra(ALLOW_PKG_NAME_LIST)
-                        ?.forEach {
-                            Log.d(TAG, "allow:$it")
+            builder.apply {
+                addAddress(VPN_ADDRESS, 32)
+                addRoute(VPN_ROUTE, 0)
+                intent.getStringArrayListExtra(ALLOW_PKG_NAME_LIST)
+                    ?.forEach {
+                        try {
+                            //check
                             packageManager.getPackageInfo(it, 0)
-                            addAllowedApplication(it)
+                            Log.d(TAG, "allow:$it")
+                        } catch (e: PackageManager.NameNotFoundException) {
+                            Log.e(TAG, "未检测到$it")
                         }
-                    intent.getStringArrayListExtra(DISALLOW_PKG_NAME_LIST)
-                        ?.forEach {
-                            addDisallowedApplication(it)
-                        }
+
+                        addAllowedApplication(it)
+                    }
+                intent.getStringArrayListExtra(DISALLOW_PKG_NAME_LIST)
+                    ?.forEach {
+                        addDisallowedApplication(it)
+                    }
 //                    addDisallowedApplication(pkg_name)
 //                    addDnsServer(dns_address)
 //                    addSearchDomain(domain)
@@ -128,16 +133,13 @@ class MyVpnService : VpnService() {
 //                    allowFamily(AF_INET)
 //                    setBlocking(true)
 //                    setHttpProxy(proxyinfo)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 //                        setMetered(true)
-                    }
+                }
 //                    setMtu(mtu)
 //                    setSession(session)
 //                    setUnderlyingNetworks(networks)
-                    //                setConfigureIntent()
-                }
-            } catch (e: PackageManager.NameNotFoundException) {
-                Log.e(TAG, "未检测到网易云音乐")
+                //                setConfigureIntent()
             }
             return builder.setSession(getString(R.string.app_name)).establish()
         } catch (e: Exception) {

@@ -4,28 +4,21 @@ import android.util.Log
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import com.jamesfchen.vpn.Constants
-import com.jamesfchen.vpn.Constants.TAG
 import com.jamesfchen.vpn.VpnHandlerThread
+import com.jamesfchen.vpn.protocol.TcpFinException
+import com.jamesfchen.vpn.protocol.TcpRstException
 import com.jamesfchen.vpn.threadFactory
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import okhttp3.internal.closeQuietly
 import okio.ByteString
-import okio.IOException
-import okio.source
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.ConnectException
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.net.SocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousSocketChannel
 import java.nio.channels.CompletionHandler
-import java.nio.channels.SocketChannel
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -102,29 +95,34 @@ class BioSocketConnection(val socket: Socket) : Connection() {
         fileOutputStream.flush()
         outputStream.write(reqBuffer)
         outputStream.flush()
-        VpnHandlerThread.executor.execute {
-            try {
-                while (true) {
-                    val ba = ByteArray(4 * 1024)
-                    val len = inputStream.read(ba)
-                    if (len == -1) {
-                        break
-                    } else if (len == 0) {
-                        Thread.sleep(50)
-                    } else {
-                        val wrap = ByteBuffer.wrap(ba)
-                        wrap.limit(len)
-                        block(wrap)
+        VpnHandlerThread.executor.submit {
+            synchronized(this) {
+                try {
+                    while (true) {
+                        val ba = ByteArray(16 * 1024)
+                        val len = inputStream.read(ba)
+                        if (len == -1) {
+                          break
+                        } else if (len == 0) {
+                            Thread.sleep(50)
+                        } else {
+                            val wrap = ByteBuffer.wrap(ba)
+                            wrap.limit(len)
+                            block(wrap)
+                        }
                     }
+                } catch (e: java.io.IOException){
+                    throw TcpRstException()
                 }
-            } catch (e: Exception) {
-                throw java.lang.Exception(e)
+                throw TcpFinException()
             }
-        }
+        }.get()
 
     }
 
     override fun close() {
+        outputStream.close()
+        inputStream.close()
         socket.close()
         socket.shutdownInput()
         socket.shutdownOutput()
@@ -220,10 +218,10 @@ object ConnectionPool {
     @Throws(ConnectException::class)
     @Synchronized
     fun get(key: String): List<Any> {
-        val c = connections[key]
-        if (c?.remoteAddress != null && "${c.remoteAddress!!.address.hostAddress}:${c.remoteAddress!!.port}" == key) {
-            return listOf(c, true)
-        }
+//        val c = connections[key]
+//        if (c?.remoteAddress != null && "${c.remoteAddress!!.address.hostAddress}:${c.remoteAddress!!.port}" == key) {
+//            return listOf(c, true)
+//        }
         val (destIp, destPort) = key.split(":")
         val myClient = Connection.createAndConnect(
             destIp,

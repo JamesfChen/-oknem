@@ -34,10 +34,10 @@ Protocol Layering
 |communication network|
 +---------------------+
  */
-
+//MTU(Maximum Transmission Unit)
 const val P_TAG = "${Constants.TAG}/packet"
-const val BUFFER_SIZE = 16384//65535=2^15-1
-//const val BUFFER_SIZE = 65535//65535=2^15-1
+const val BUFFER_SIZE = 16*1024//16384
+// 4*1024
 interface TransportLayerHeader {
     fun toByteBuffer(): ByteBuffer
 }

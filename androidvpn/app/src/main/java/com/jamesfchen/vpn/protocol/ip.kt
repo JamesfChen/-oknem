@@ -241,6 +241,7 @@ enum class Protocol(val typeValue: Int) {
     132: SCTP (Stream Control Transmission Protocol)
     136: UDPLite [RFC 3828]
     137: MPLS-in-IP [RFC 4023]
+    https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
      */
     UNKOWN(-1),
     Reserved(0),
@@ -252,6 +253,7 @@ enum class Protocol(val typeValue: Int) {
     IGRP(88),
     OSPF(89),
     IPv6_ICMP(58),
+    SSCOPMCE(128),
     MplsInIp(137);
 
     companion object {

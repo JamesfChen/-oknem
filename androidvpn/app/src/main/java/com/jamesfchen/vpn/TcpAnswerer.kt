@@ -14,6 +14,7 @@ import java.net.InetSocketAddress
 import java.net.SocketException
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutionException
 
 /**
  * Copyright ® $ 2021
@@ -21,21 +22,33 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * @since: Jan/08/2021  Fri
  */
-class TcpAnswerer(val pWriter: PacketWriter, val answerHandler: Handler,val answerers: ConcurrentHashMap<String, TcpAnswerer>) : Runnable {
+class TcpAnswerer(
+    val pWriter: PacketWriter,
+    val answerHandler: Handler,
+    val answerers: ConcurrentHashMap<String, TcpAnswerer>
+) : Runnable {
     var isusable: Boolean = false
     var syncCount = 0
     var packId = 1
-    var seqNo = 1L
-    var ackNo = 0L
+    private var answererSeqNo = 1L//sequence用来标识哪一个回答者的tcp报文
+    private var answererAckNo = 0L//acknowledgement用来标识响应的是哪一个调用者的tcp报文
+    private var status: TcpStatus = TcpStatus.LISTEN
 
     val donotConnect = mutableSetOf<String>()
     val connected = mutableSetOf<String>()
-    val connectionPool=ConnectionPool
+    val connectionPool = ConnectionPool
     private val packetQueue = ArrayBlockingQueue<Packet>(100)
     fun dispatch(packet: Packet) {
         packetQueue.offer(packet)
     }
+    private fun closeConnection(destIp:String,destPort: Int){
+        answerers.remove(destIp)
+        connectionPool.remove("${destIp}:${destPort}")
+        //val obtain = Message.obtain()
+//                obtain.obj = key
+//                answerHandler.sendMessage(obtain)
 
+    }
     override fun run() {
         while (true) {
             val packet = packetQueue.take()
@@ -48,99 +61,115 @@ class TcpAnswerer(val pWriter: PacketWriter, val answerHandler: Handler,val answ
             val destAddr = InetSocketAddress(destIp, destPort)
             val key = "${destIp}:${destPort}"
             try {
-               val conn= if (destPort != 443) {
                 val (cc, isUsable) = connectionPool.get(key)
-                    cc as Connection
-                }else{
-                    null
-                }
-//                printDontConnect(isUsable as Boolean, conn, packet)
+                val conn = cc as Connection
+                printDontConnect(isUsable as Boolean, conn, packet)
                 val controlbit = tcpHeader.controlBit
                 if (controlbit.hasSYN) {
-//                    if (sInterceptIps.contains(packet.ipHeader.destinationAddresses.hostAddress)) {
-//                        Log.d(
-//                            TAG,
-//                            ">>>receive client's syn packet: req buffer ${packet}"
-//                        )
-//                    }
                     if (syncCount == 0) {
-                        ackNo = tcpHeader.sequenceNo + 1
+                        answererAckNo = tcpHeader.sequenceNo + 1
                         if (destPort != 443) {
                             val p = createSynAndAckPacketOnHandshake(
-                                destAddr, srcAddr, 1L, ackNo, packId
+                                destAddr, srcAddr, 1L, answererAckNo, packId
                             )
                             pWriter.writePacket(p)
 
                         } else {
                             val p = createAckAndRSTPacketOnHandshake(
-                                destAddr, srcAddr, 1L, ackNo, packId
+                                destAddr, srcAddr, 1L, answererAckNo, packId
                             )
                             pWriter.writePacket(p)
 //                            val obtain = Message.obtain()
 //                            obtain.obj = key
 //                            answerHandler.sendMessage(obtain)
                             answerers.remove(destIp)
-//                            ConnectionPool.remove(destIp)
                         }
-                        ++seqNo
+                        ++answererSeqNo
                         ++packId
 
                     } else {
-                        ackNo = tcpHeader.sequenceNo + 1
+                        answererAckNo = tcpHeader.sequenceNo + 1
                     }
                     ++syncCount
+                    status = TcpStatus.SYN_RECEIVED
                 } else if (controlbit.hasACK) {//send data to remote
-                    val totalBytes = packet.toByteBuffer()
-                    val totalRemaing = totalBytes.remaining()
-                    if (totalRemaing == 0 || ackNo >= totalRemaing + tcpHeader.sequenceNo) {
+                    if (status == TcpStatus.LAST_ACK) {
+                        status=TcpStatus.CLOSED
+                        if (sInterceptIps.contains(packet.ipHeader.destinationAddresses.hostAddress)) {
+                            Log.d(
+                                TAG,
+                                ">>>receive client's last ack packet: ${packet}"
+                            )
+                        }
+                        //todo:close stream
+                        val p = createFinAndAckPacketOnWave(destAddr,srcAddr,answererSeqNo,answererAckNo,packId)
+                        pWriter.writePacket(p)
+                        ++packId
+                        closeConnection(destIp, destPort)
+                        return
+                    }
+                    val callerSeqNo = tcpHeader.sequenceNo
+                    val payloadSize = packet.payload?.size ?: 0
+                    if (payloadSize == 0 || answererAckNo >= payloadSize + callerSeqNo) {
                         continue
                     }
-                    ackNo = seqNo
-                    ackNo += totalRemaing
+                    answererAckNo = callerSeqNo
+                    answererAckNo += payloadSize
                     if (sInterceptIps.contains(packet.ipHeader.destinationAddresses.hostAddress)) {
                         Log.d(
                             TAG,
                             ">>>receive client's ack packet: req buffer ${packet}"
                         )
                     }
-                    val payloadSize = packet.payload?.size ?: 0
-                    if (payloadSize > 0) {
-                        conn?.send(packet.payload!!) { respBuffer ->
-                            val array = respBuffer.array()
-                            val remaining = respBuffer.remaining()
-                            Log.e(
-                                TAG,
-                                "${destIp}:${destPort} resp buffer size:${remaining} ${
+
+                    conn?.send(packet.payload!!) { respBuffer ->
+                        val array = respBuffer.array()
+                        val remaining = respBuffer.remaining()
+                        Log.e(
+                            TAG,
+                            "${destIp}:${destPort} resp buffer size:${remaining}\n" +
                                     respBuffer.toByteString().utf8()
-                                }"
-                            )
-                            val p = createAckPacketOnDataExchange(
-                                destAddr,
-                                srcAddr,
-                                seqNo,
-                                ackNo,
-                                packId,
-                                array
-                            )
-                            pWriter.writePacket(p)
-                            ++packId
-                            seqNo += remaining
-                        }
+                        )
+                        val unitSize = BUFFER_SIZE - IP4_HEADER_SIZE - TCP_HEADER_SIZE
+//                        while (){
+//
+//                        }
+                        val p = createAckPacketOnDataExchange(
+                            destAddr,
+                            srcAddr,
+                            answererSeqNo,
+                            answererAckNo,
+                            packId,
+                            array
+                        )
+                        pWriter.writePacket(p)
+                        answererSeqNo += remaining
                     }
                     //在应答客户端ack时 seqNo=客户端seqNo ,ackNo=客户端seqNo+报文大小
                     pWriter.writePacket(
                         createAckPacketOnHandshake(
-                            destAddr, srcAddr, seqNo, ackNo, packId
+                            destAddr, srcAddr, answererSeqNo, answererAckNo, packId
                         )
                     )
                     ++packId
+                    status = TcpStatus.ESTABLISHED
 
                 } else if (controlbit.hasFIN) {//close connection
-                    ackNo = tcpHeader.sequenceNo+1
-                    val p = createAckPacketOnWave(destAddr,srcAddr,seqNo,ackNo,packId)
+                    if (sInterceptIps.contains(packet.ipHeader.destinationAddresses.hostAddress)) {
+                        Log.d(TAG, ">>>receive client's fin packet: ${packet}")
+                    }
+                    answererAckNo = tcpHeader.sequenceNo + 1
+                    val p = createAckPacketOnWave(
+                        destAddr,
+                        srcAddr,
+                        answererSeqNo,
+                        answererAckNo,
+                        packId
+                    )
                     pWriter.writePacket(p)
                     ++packId
-                    ++seqNo
+                    ++answererSeqNo
+                    status = TcpStatus.CLOSE_WAIT
                 } else if (controlbit.hasPSH) {
 
                 } else if (controlbit.hasRST) {
@@ -149,7 +178,10 @@ class TcpAnswerer(val pWriter: PacketWriter, val answerHandler: Handler,val answ
 
                 }
             } catch (e: SocketException) {
-                Log.e(TAG, "socket error:" + Log.getStackTraceString(e) + "\t" + "src:${sourceIp}:$sourcePort  dest:$key\t")
+                Log.e(
+                    TAG,
+                    "socket error:" + Log.getStackTraceString(e) + "\t" + "src:${sourceIp}:$sourcePort  dest:$key\t"
+                )
                 val p = createRSTPacketOnHandshake(
                     destAddr,
                     srcAddr,
@@ -158,11 +190,11 @@ class TcpAnswerer(val pWriter: PacketWriter, val answerHandler: Handler,val answ
                     packId
                 )
                 pWriter.writePacket(p)
-//                val obtain = Message.obtain()
-//                obtain.obj = key
-//                answerHandler.sendMessage(obtain)
-                answerers.remove(destIp)
-//                connectionPool.remove(key)
+                ++packId
+
+                //todo:close stream
+                closeConnection(destIp, destPort)
+                return
             } catch (e: ConnectException) {
                 Log.e(
                     TAG,
@@ -176,18 +208,51 @@ class TcpAnswerer(val pWriter: PacketWriter, val answerHandler: Handler,val answ
                     tcpHeader.sequenceNo + 1,
                     packId
                 )
-//                pWriter.writePacket(p)
-//                val obtain = Message.obtain()
-//                obtain.obj = key
-//                answerHandler.sendMessage(obtain)
-                answerers.remove(destIp)
-//                connectionPool.remove(key)
-                break
+                pWriter.writePacket(p)
+                ++packId
+
+                //todo:close stream
+                closeConnection(destIp, destPort)
+                return
+            } catch (e: ExecutionException) {
+                Log.e(TAG, "1 connect fin: ${e.message} " + "src:${sourceIp}:$sourcePort  dest:$key\t")
+                if ("com.jamesfchen.vpn.protocol.TcpFinException" == e.message){
+                    Log.e(TAG, "last ack")
+                    //todo:fin close stream
+                    status = TcpStatus.LAST_ACK
+                }else{
+                    Log.e(TAG, "tcp close stream")
+                    status = TcpStatus.CLOSED
+                    val p = createRstPacketOnWave(destAddr,srcAddr,answererSeqNo,answererAckNo,packId)
+                    pWriter.writePacket(p)
+                    ++packId
+                    closeConnection(destIp, destPort)
+                }
+
+            } catch (e: TcpFinException) {
+                Log.e(TAG, "2 connect fin:" + "src:${sourceIp}:$sourcePort  dest:$key\t")
+                status = TcpStatus.LAST_ACK
+                    //todo:fin close stream
+                return
+            }catch (e:TcpRstException){
+                Log.e(TAG, "connect rst:" + "src:${sourceIp}:$sourcePort  dest:$key\t")
+                status = TcpStatus.CLOSED
+                //todo:rst close stream
+                val p = createRstPacketOnWave(destAddr,srcAddr,answererSeqNo,answererAckNo,packId)
+                pWriter.writePacket(p)
+                ++packId
+                closeConnection(destIp, destPort)
+                return
             }
         }
     }
 
+    var isFirstSyncACK = true
+    var isFirstRSTACK = true
+    var isFirstACK = true
+    var isFirstRST = true
     private fun printDontConnect(isUsable: Boolean, c: Connection, packet: Packet) {
+        val ipHeader = packet.ipHeader
         val tcpHeader = packet.tlHeader as TcpHeader
         val sourceIp = packet.ipHeader.sourceAddresses.hostAddress
         val sourcePort = tcpHeader.sourcePort
@@ -203,15 +268,28 @@ class TcpAnswerer(val pWriter: PacketWriter, val answerHandler: Handler,val answ
                     .append("${destIp}:${destPort} from port 443 down to port 80")
                 connected.add(destIp)
             }
-//                            Log.d(TAG, sb.toString())
+//            Log.d(TAG, sb.toString())
         } else {
             if (!connected.contains(destIp)) {
-                Log.i(
-                    TAG,
-                    "don't connect port 443 dest:${destIp}:${destPort}  packet:${(packet.tlHeader as TcpHeader).controlBit}"
-                )
+//                Log.i(TAG, "don't connect port 443 dest:${destIp}:${destPort}  packet:${(packet.tlHeader as TcpHeader).controlBit}")
             }
             donotConnect.add(destIp)
+        }
+        val controlbit = tcpHeader.controlBit
+        if (sInterceptIps.contains(ipHeader.sourceAddresses.hostAddress)) {
+            if (isFirstSyncACK && controlbit.hasSYN && controlbit.hasACK) {
+                Log.d(TAG, "<<< send  server's sync_ack packet$packet")
+                isFirstSyncACK = false
+            } else if (isFirstRSTACK && controlbit.hasRST && controlbit.hasACK) {
+                isFirstRSTACK = false
+                Log.d(TAG, "<<< send  server's rst_ack packet$packet")
+            } else if (isFirstACK && controlbit.hasACK) {
+                isFirstACK = false
+                Log.d(TAG, "<<< send  server's ack packet$packet")
+            } else if (isFirstRST && controlbit.hasRST) {
+                isFirstRST = false
+                Log.d(TAG, "<<< send  server's rst packet$packet")
+            }
         }
     }
 

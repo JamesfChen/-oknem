@@ -6,8 +6,10 @@ import android.os.Looper
 import android.os.Message
 import android.util.Log
 import com.jamesfchen.vpn.*
+import java.lang.Exception
 import java.nio.ByteBuffer
 import java.util.*
+import java.util.concurrent.ExecutionException
 
 /**
  * Copyright ® $ 2017
@@ -15,11 +17,17 @@ import java.util.*
  *
  * @author: hawks.jamesf
  * @since: Dec/19/2020  Sat
+ * 对于tcp报文 total总量来说最大可以传输65535=2^15-1(payload 65535-header_size-option_size),而mtu只能最大1480(payload 1460),
+ * 为什么payload负载的数据量不同?
+ * 因为在ip包中通过分组形式对65535字节(64k)的数据包进行切割，按照顺序分组发送，而一个分组中只能存放的最大数据量为1480。
+ *
+ * [两张动图-彻底明白TCP的三次握手与四次挥手](https://blog.csdn.net/qzcsu/article/details/72861891)
+ *
  */
 const val T_TAG = "${Constants.TAG}/tdp"
 const val TCP_HEADER_SIZE = 20
 const val TCP_OPTION_HEADER_SIZE = 40
-const val TCP_PAYLOAD_MAX_SIZE = 1460
+const val TCP_MTU_PAYLOAD_MAX_SIZE = 1460
 const val TCP_SIZE = 1480
 
 data class TcpHeader(
@@ -221,5 +229,7 @@ enum class TcpStatus {
     LISTEN, SYN_SENT, SYN_RECEIVED, ESTABLISHED,
     FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT, CLOSING, LAST_ACK, TIME_WAIT, CLOSED;
 }
+class TcpFinException(): ExecutionException(){}
+class TcpRstException():Exception(){}
 
 

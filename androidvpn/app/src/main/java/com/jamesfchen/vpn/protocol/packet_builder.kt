@@ -10,10 +10,6 @@ import java.net.InetSocketAddress
  *
  * @since: Jan/12/2021  Tue
  */
-var isFirstSyncACK = true
-var isFirstRSTACK = true
-var isFirstACK = true
-var isFirstRST = true
 fun createTCPPacket(
     sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long,
     controlBit: ControlBit, ipId: Int, payload: ByteArray? = null
@@ -38,22 +34,6 @@ fun createTCPPacket(
     ipHeader.headerChecksum = ipHeader.computeHeaderChecksum()
     val p = Packet(ipHeader, tlHeader, payload)
     tlHeader.checksum = p.computeChecksum()
-    if (sInterceptIps.contains(ipHeader.sourceAddresses.hostAddress)) {
-        if (isFirstSyncACK && controlBit.hasSYN && controlBit.hasACK) {
-            Log.d("cjfvpn/dispatcher", "<<< send  server's sync_ack packet$p")
-            isFirstSyncACK = false
-        } else if (isFirstRSTACK && controlBit.hasRST && controlBit.hasACK) {
-            isFirstRSTACK = false
-            Log.d("cjfvpn/dispatcher", "<<< send  server's rst_ack packet$p")
-        } else if (isFirstACK && controlBit.hasACK) {
-            isFirstACK = false
-            Log.d("cjfvpn/dispatcher", "<<< send  server's ack packet$p")
-
-        } else if (isFirstRST && controlBit.hasRST) {
-            isFirstRST=false
-            Log.d("cjfvpn/dispatcher", "<<< send  server's rst packet$p")
-        }
-    }
     return p
 }
 
@@ -115,14 +95,25 @@ fun createAckPacketOnWave(
     )
 }
 
-fun createFinPacketOnWave(
+fun createFinAndAckPacketOnWave(
     sour: InetSocketAddress, dest: InetSocketAddress,
     seq: Long, ack: Long, ipId: Int
 ): Packet {
     return createTCPPacket(
         sour, dest,
         seq, ack,
-        ControlBit(ControlBit.FIN),
+        ControlBit(ControlBit.FIN or ControlBit.ACK),
+        ipId
+    )
+}
+fun createRstPacketOnWave(
+    sour: InetSocketAddress, dest: InetSocketAddress,
+    seq: Long, ack: Long, ipId: Int
+): Packet {
+    return createTCPPacket(
+        sour, dest,
+        seq, ack,
+        ControlBit(ControlBit.RST),
         ipId
     )
 }

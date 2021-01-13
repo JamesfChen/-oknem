@@ -57,7 +57,6 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
         val aThread = AnswerHandlerThread()
         aThread.start()
         answerHandler=AnswerHandler(aThread.looper)
-
     }
 
     override fun run() {
@@ -147,7 +146,7 @@ class UdpHandler(looper: Looper) : Handler(looper) {
 
 
 class PacketReader constructor(vpnInterface: ParcelFileDescriptor) : AutoCloseable, Closeable {
-    private val buffer = ByteBuffer.allocate(16384)
+    private val buffer = ByteBuffer.allocate(BUFFER_SIZE)
     private val vpnfd = vpnInterface.fileDescriptor
     private val vpnInputChannel: FileChannel = FileInputStream(vpnfd).channel
     private val vpnInput = FileInputStream(vpnfd)
@@ -165,8 +164,8 @@ class PacketReader constructor(vpnInterface: ParcelFileDescriptor) : AutoCloseab
             }
             buffer.flip()
             buffer.limit(len)
-//            Log.d(P_TAG, "buffer:${buffer}  len:${len} ")
             val packet = buffer.getPacket()
+//            Log.d(P_TAG, "len:${len}  protocol:${packet.ipHeader.protocol}")
 //            Log.d(P_TAG, "read buffet: $packet")
             return packet
         } catch (e: Exception) {
