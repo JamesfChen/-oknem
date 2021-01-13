@@ -1,7 +1,6 @@
 package com.jamesfchen.vpn
 
 import android.os.Handler
-import android.os.Message
 import android.util.Log
 import com.jamesfchen.vpn.Constants.sInterceptIps
 import com.jamesfchen.vpn.client.Connection
@@ -26,7 +25,7 @@ class TcpAnswerer(
     val pWriter: PacketWriter,
     val answerHandler: Handler,
     val answerers: ConcurrentHashMap<String, TcpAnswerer>
-) : Runnable {
+) : Runnable{
     var isusable: Boolean = false
     var syncCount = 0
     var packId = 1
@@ -38,10 +37,11 @@ class TcpAnswerer(
     val connected = mutableSetOf<String>()
     val connectionPool = ConnectionPool
     private val packetQueue = ArrayBlockingQueue<Packet>(100)
-    fun dispatch(packet: Packet) {
+     fun dispatch(packet: Packet) {
         packetQueue.offer(packet)
     }
-    private fun closeConnection(destIp:String,destPort: Int){
+
+    private fun closeConnection(destIp: String, destPort: Int) {
         answerers.remove(destIp)
         connectionPool.remove("${destIp}:${destPort}")
         //val obtain = Message.obtain()
@@ -49,6 +49,7 @@ class TcpAnswerer(
 //                answerHandler.sendMessage(obtain)
 
     }
+
     override fun run() {
         while (true) {
             val packet = packetQueue.take()
@@ -94,7 +95,7 @@ class TcpAnswerer(
                     status = TcpStatus.SYN_RECEIVED
                 } else if (controlbit.hasACK) {//send data to remote
                     if (status == TcpStatus.LAST_ACK) {
-                        status=TcpStatus.CLOSED
+                        status = TcpStatus.CLOSED
                         if (sInterceptIps.contains(packet.ipHeader.destinationAddresses.hostAddress)) {
                             Log.d(
                                 TAG,
@@ -102,7 +103,13 @@ class TcpAnswerer(
                             )
                         }
                         //todo:close stream
-                        val p = createFinAndAckPacketOnWave(destAddr,srcAddr,answererSeqNo,answererAckNo,packId)
+                        val p = createFinAndAckPacketOnWave(
+                            destAddr,
+                            srcAddr,
+                            answererSeqNo,
+                            answererAckNo,
+                            packId
+                        )
                         pWriter.writePacket(p)
                         ++packId
                         closeConnection(destIp, destPort)
@@ -123,27 +130,33 @@ class TcpAnswerer(
                     }
 
                     conn?.send(packet.payload!!) { respBuffer ->
-                        val array = respBuffer.array()
                         val remaining = respBuffer.remaining()
+                        val array = ByteArray(remaining)
+                        respBuffer.get(array)
                         Log.e(
                             TAG,
-                            "${destIp}:${destPort} resp buffer size:${remaining}\n" +
+                            "${destIp}:${destPort} resp buffer size:${remaining} - ${array.size}\n" +
                                     respBuffer.toByteString().utf8()
                         )
-                        val unitSize = BUFFER_SIZE - IP4_HEADER_SIZE - TCP_HEADER_SIZE
-//                        while (){
-//
-//                        }
-                        val p = createAckPacketOnDataExchange(
-                            destAddr,
-                            srcAddr,
-                            answererSeqNo,
-                            answererAckNo,
-                            packId,
-                            array
-                        )
-                        pWriter.writePacket(p)
-                        answererSeqNo += remaining
+                        val unitSize: Int = BUFFER_SIZE - IP4_HEADER_SIZE - TCP_HEADER_SIZE
+                        var offset = 0
+                        while (offset < array.size) {
+                            val len =
+                                if (offset + unitSize > array.size) array.size - offset else unitSize
+                            val unit = ByteArray(len)
+                            System.arraycopy(array, offset, unit, 0, len)
+                            val p = createAckPacketOnDataExchange(
+                                destAddr,
+                                srcAddr,
+                                answererSeqNo,
+                                answererAckNo,
+                                packId,
+                                array
+                            )
+                            pWriter.writePacket(p)
+                            answererSeqNo += remaining
+                            offset += len
+                        }
                     }
                     //在应答客户端ack时 seqNo=客户端seqNo ,ackNo=客户端seqNo+报文大小
                     pWriter.writePacket(
@@ -215,15 +228,24 @@ class TcpAnswerer(
                 closeConnection(destIp, destPort)
                 return
             } catch (e: ExecutionException) {
-                Log.e(TAG, "1 connect fin: ${e.message} " + "src:${sourceIp}:$sourcePort  dest:$key\t")
-                if ("com.jamesfchen.vpn.protocol.TcpFinException" == e.message){
+                Log.e(
+                    TAG,
+                    "1 connect fin: ${e.message} " + "src:${sourceIp}:$sourcePort  dest:$key\t"
+                )
+                if ("com.jamesfchen.vpn.protocol.TcpFinException" == e.message) {
                     Log.e(TAG, "last ack")
                     //todo:fin close stream
                     status = TcpStatus.LAST_ACK
-                }else{
+                } else {
                     Log.e(TAG, "tcp close stream")
                     status = TcpStatus.CLOSED
-                    val p = createRstPacketOnWave(destAddr,srcAddr,answererSeqNo,answererAckNo,packId)
+                    val p = createRstPacketOnWave(
+                        destAddr,
+                        srcAddr,
+                        answererSeqNo,
+                        answererAckNo,
+                        packId
+                    )
                     pWriter.writePacket(p)
                     ++packId
                     closeConnection(destIp, destPort)
@@ -232,13 +254,19 @@ class TcpAnswerer(
             } catch (e: TcpFinException) {
                 Log.e(TAG, "2 connect fin:" + "src:${sourceIp}:$sourcePort  dest:$key\t")
                 status = TcpStatus.LAST_ACK
-                    //todo:fin close stream
+                //todo:fin close stream
                 return
-            }catch (e:TcpRstException){
+            } catch (e: TcpRstException) {
                 Log.e(TAG, "connect rst:" + "src:${sourceIp}:$sourcePort  dest:$key\t")
                 status = TcpStatus.CLOSED
                 //todo:rst close stream
-                val p = createRstPacketOnWave(destAddr,srcAddr,answererSeqNo,answererAckNo,packId)
+                val p = createRstPacketOnWave(
+                    destAddr,
+                    srcAddr,
+                    answererSeqNo,
+                    answererAckNo,
+                    packId
+                )
                 pWriter.writePacket(p)
                 ++packId
                 closeConnection(destIp, destPort)

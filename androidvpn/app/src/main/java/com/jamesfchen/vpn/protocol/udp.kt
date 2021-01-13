@@ -22,7 +22,7 @@ const val U_TAG = "${Constants.TAG}/udp"
 const val UDP_HEADER_SIZE = 8
 
 data class UdpHeader(
-    val sourcePort: Int, val destPort: Int, val udpLen: Int, val checksum: Int
+    val sourcePort: Int, val destPort: Int,val udpLen: Int
 ) : TransportLayerHeader {
     /*
 
@@ -40,6 +40,7 @@ data class UdpHeader(
 
                       User Datagram Header Format
      */
+    var checksum: Int=0
     override fun toByteBuffer() = ByteBuffer.allocate(UDP_HEADER_SIZE).apply {
         putUShort(sourcePort)
         putUShort(destPort)
@@ -54,7 +55,9 @@ fun ByteBuffer.getUdpHeader(): UdpHeader {
     val destPort = getUShort()
     val len = getUShort()
     val checksum = getUShort()
-    return UdpHeader(sourPort, destPort, len, checksum)
+    val p = UdpHeader(sourPort, destPort, len)
+    p.checksum = checksum
+    return p
 }
 
 

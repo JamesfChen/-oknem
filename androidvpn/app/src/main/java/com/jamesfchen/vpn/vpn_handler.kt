@@ -39,7 +39,8 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
 
     val dispatcher: PacketDispatcher
 
-    private val answerers = ConcurrentHashMap<String, TcpAnswerer>()
+    private val tcpAnswerers = ConcurrentHashMap<String, TcpAnswerer>()
+    private val udpAnswerers = ConcurrentHashMap<String, UdpAnswerer>()
     val answerHandler:AnswerHandler
     private var mPWriter:PacketWriter?=null
     inner class AnswerHandler(looper: Looper) : Handler(looper) {
@@ -47,7 +48,7 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
             super.handleMessage(msg)
             val key = msg.obj as String
             val (destIp, destPort) = key.split(":")
-            answerers.remove(destIp)
+//            answerers.remove(destIp)
 //            ConnectionPool.remove(key)
         }
     }
@@ -70,11 +71,11 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
                         val destIp = packet.ipHeader.destinationAddresses.hostAddress
                         when (packet.ipHeader.protocol) {
                             Protocol.TCP -> {
-                                var answer = answerers[destIp]
+                                var answer =  tcpAnswerers[destIp]
                                 if (answer == null) {
-                                    answer = TcpAnswerer(pWriter,answerHandler,answerers)
+                                    answer = TcpAnswerer(pWriter,answerHandler,tcpAnswerers)
                                     answer.isusable = false
-                                    answerers[destIp] = answer
+                                    tcpAnswerers[destIp] = answer
                                     executor.execute(answer)
                                 } else {
                                     answer.isusable = true
@@ -82,6 +83,16 @@ class VpnHandlerThread(val vpnInterface: ParcelFileDescriptor) : Thread("vpn_thr
                                 answer.dispatch(packet)
                             }
                             Protocol.UDP -> {
+                                var answer = udpAnswerers[destIp]
+                                if (answer == null) {
+                                    answer = UdpAnswerer(pWriter,answerHandler,udpAnswerers)
+                                    answer.isusable = false
+                                    udpAnswerers[destIp] = answer
+                                    executor.execute(answer)
+                                } else {
+                                    answer.isusable = true
+                                }
+                                answer.dispatch(packet)
                             }
                             Protocol.ICMP -> {
                             }

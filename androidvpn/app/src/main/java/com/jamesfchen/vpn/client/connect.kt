@@ -1,21 +1,9 @@
 package com.jamesfchen.vpn.client
 
 import android.util.Log
-import androidx.annotation.MainThread
-import androidx.annotation.WorkerThread
 import com.jamesfchen.vpn.Constants
-import com.jamesfchen.vpn.VpnHandlerThread
-import com.jamesfchen.vpn.protocol.TcpFinException
-import com.jamesfchen.vpn.protocol.TcpRstException
 import com.jamesfchen.vpn.threadFactory
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
-import okio.ByteString
-import java.io.File
-import java.io.FileOutputStream
-import java.net.ConnectException
-import java.net.InetSocketAddress
-import java.net.Socket
+import java.net.*
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousSocketChannel
 import java.nio.channels.CompletionHandler
@@ -23,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+
 
 /**
  * Copyright ® $ 2017
@@ -37,7 +26,7 @@ const val C_TAG = "${Constants.TAG}/cli"
 abstract class Connection {
     companion object {
         @Throws(ConnectException::class)
-        fun createAndConnect(ip: String, port: Int, aioSocket: Boolean): Connection {
+        fun createAndConnectOverTcp(ip: String, port: Int, aioSocket: Boolean): Connection {
             if (aioSocket) {
                 val asynSocketChannel: AsynchronousSocketChannel = AsynchronousSocketChannel.open()
                 asynSocketChannel.connect(InetSocketAddress(ip, port)).get()
@@ -50,7 +39,7 @@ abstract class Connection {
             }
         }
 
-        fun <A> createAndConnect(
+        fun <A> createAndConnectOverTcp(
             ip: String,
             port: Int,
             handler: CompletionHandler<Void, A?>,
@@ -60,6 +49,19 @@ abstract class Connection {
             asynSocketChannel.connect(InetSocketAddress(ip, port), attachment, handler)
             return AioSocketConnection(asynSocketChannel)
 
+        }
+
+        fun createAndConnectOverUdp(ip: String, port: Int, aioSocket: Boolean): Connection {
+            if (aioSocket) {
+//                val asynSocketChannel: AsynchronousSocketChannel = As.open()
+//                asynSocketChannel.connect(InetSocketAddress(ip, port)).get()
+//                return AioSocketConnection(asynSocketChannel)
+                val socket = DatagramSocket()
+                return BioUdpConnection(ip,port,socket)
+            } else {
+                val socket = DatagramSocket()
+                return BioUdpConnection(ip,port,socket)
+            }
         }
 
     }
@@ -75,124 +77,6 @@ abstract class Connection {
     }
 
     abstract fun close()
-}
-
-class BioSocketConnection(val socket: Socket) : Connection() {
-    val outputStream = socket.getOutputStream()
-    val inputStream = socket.getInputStream()
-    override var remoteAddress: InetSocketAddress? =
-        socket.remoteSocketAddress as InetSocketAddress?
-    override var localAddress: InetSocketAddress? = socket.localSocketAddress as InetSocketAddress?
-
-    companion object {
-        const val BIO_TAG = "${C_TAG}/BioSocket"
-    }
-
-    override fun send(reqBuffer: ByteArray, block: (respBuffer: ByteBuffer) -> Unit) {
-        val fileOutputStream =
-            FileOutputStream(File("/storage/emulated/0/Android/data/com.jamesfchen.vpn/files/a/request.txt"))
-        fileOutputStream.write(reqBuffer)
-        fileOutputStream.flush()
-        outputStream.write(reqBuffer)
-        outputStream.flush()
-        VpnHandlerThread.executor.submit {
-            synchronized(this) {
-                try {
-                    while (true) {
-                        val ba = ByteArray(16 * 1024)
-                        val len = inputStream.read(ba)
-                        if (len == -1) {
-                          break
-                        } else if (len == 0) {
-                            Thread.sleep(50)
-                        } else {
-                            val wrap = ByteBuffer.wrap(ba)
-                            wrap.limit(len)
-                            block(wrap)
-                        }
-                    }
-                } catch (e: java.io.IOException){
-                    throw TcpRstException()
-                }
-                throw TcpFinException()
-            }
-        }.get()
-
-    }
-
-    override fun close() {
-        outputStream.close()
-        inputStream.close()
-        socket.close()
-        socket.shutdownInput()
-        socket.shutdownOutput()
-    }
-
-}
-
-class AioSocketConnection(
-    val asynSocketChannel: AsynchronousSocketChannel
-) : Connection() {
-    companion object {
-        const val AIO_TAG = "${C_TAG}/AioSocket"
-    }
-
-    override var remoteAddress: InetSocketAddress? =
-        asynSocketChannel.remoteAddress as InetSocketAddress?
-    override var localAddress: InetSocketAddress? =
-        asynSocketChannel.localAddress as InetSocketAddress?
-
-    @WorkerThread
-    override fun send(reqBuffer: ByteArray, block: (respBuffer: ByteBuffer) -> Unit) {
-
-        try {
-            asynSocketChannel.write(ByteBuffer.wrap(reqBuffer)).get()
-//            val byteBuffer: ByteBuffer =
-//                ByteBuffer.allocate(com.jamesfchen.vpn.protocol.BUFFER_SIZE)
-//            asynSocketChannel.read(byteBuffer).get()
-//            byteBuffer.flip()
-//            block(byteBuffer)
-        } catch (e: Exception) {
-            Log.d(AIO_TAG, Log.getStackTraceString(e))
-        }
-    }
-
-    @MainThread
-    override fun <A> send(
-        reqBuffer: ByteArray,
-        handler: CompletionHandler<Int, A?>,
-        attachment: A?
-    ) {
-
-        try {
-            asynSocketChannel.write(ByteBuffer.wrap(reqBuffer), attachment, handler)
-//            val byteBuffer: ByteBuffer =
-//                ByteBuffer.allocate(com.jamesfchen.vpn.protocol.BUFFER_SIZE)
-//            asynSocketChannel.read(byteBuffer, attachment, handler)
-//            byteBuffer.flip()
-        } catch (e: Exception) {
-            Log.d(AIO_TAG, Log.getStackTraceString(e))
-        }
-    }
-
-    override fun close() {
-        asynSocketChannel.close()
-    }
-}
-
-class MyWebSocketListener : WebSocketListener() {
-    override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-        super.onMessage(webSocket, bytes)
-//        ByteBuffer
-//        IntBuffer
-//        StringBuffer
-        Log.d(C_TAG, "onMessage bytes:$bytes")
-    }
-
-    override fun onMessage(webSocket: WebSocket, text: String) {
-        super.onMessage(webSocket, text)
-        Log.d(C_TAG, "onMessage text:$text")
-    }
 }
 
 object ConnectionPool {
@@ -223,7 +107,24 @@ object ConnectionPool {
 //            return listOf(c, true)
 //        }
         val (destIp, destPort) = key.split(":")
-        val myClient = Connection.createAndConnect(
+        val myClient = Connection.createAndConnectOverTcp(
+            destIp,
+            destPort.toInt(),
+            aioSocket = false
+        )
+        connections[key] = myClient
+
+        return listOf(myClient, false)
+    }
+    @Throws(ConnectException::class)
+    @Synchronized
+    fun getOverUdp(key: String): List<Any> {
+//        val c = connections[key]
+//        if (c?.remoteAddress != null && "${c.remoteAddress!!.address.hostAddress}:${c.remoteAddress!!.port}" == key) {
+//            return listOf(c, true)
+//        }
+        val (destIp, destPort) = key.split(":")
+        val myClient = Connection.createAndConnectOverUdp(
             destIp,
             destPort.toInt(),
             aioSocket = false

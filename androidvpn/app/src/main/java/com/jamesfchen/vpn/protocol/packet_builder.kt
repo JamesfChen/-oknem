@@ -1,7 +1,5 @@
 package com.jamesfchen.vpn.protocol
 
-import android.util.Log
-import com.jamesfchen.vpn.Constants.sInterceptIps
 import java.net.InetSocketAddress
 
 /**
@@ -10,6 +8,8 @@ import java.net.InetSocketAddress
  *
  * @since: Jan/12/2021  Tue
  */
+
+//===========================================tcp packet
 fun createTCPPacket(
     sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long,
     controlBit: ControlBit, ipId: Int, payload: ByteArray? = null
@@ -33,7 +33,7 @@ fun createTCPPacket(
     )
     ipHeader.headerChecksum = ipHeader.computeHeaderChecksum()
     val p = Packet(ipHeader, tlHeader, payload)
-    tlHeader.checksum = p.computeChecksum()
+    tlHeader.checksum = p.computeTcpChecksum()
     return p
 }
 
@@ -46,6 +46,7 @@ fun createRSTPacketOnHandshake(
         sour, dest, seq, ack, ControlBit(ControlBit.RST), ipId
     )
 }
+
 fun createAckAndRSTPacketOnHandshake(
     sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long, ipId: Int
 ): Packet {
@@ -72,14 +73,20 @@ fun createAckPacketOnHandshake(
         ipId
     )
 }
+
 fun createAckPacketOnDataExchange(
-    sour: InetSocketAddress, dest: InetSocketAddress, seq: Long, ack: Long, ipId: Int,payload: ByteArray? = null
+    sour: InetSocketAddress,
+    dest: InetSocketAddress,
+    seq: Long,
+    ack: Long,
+    ipId: Int,
+    payload: ByteArray? = null
 ): Packet {
     return createTCPPacket(
         sour, dest,
         seq, ack,
         ControlBit(ControlBit.ACK),
-        ipId,payload
+        ipId, payload
     )
 }
 
@@ -106,6 +113,7 @@ fun createFinAndAckPacketOnWave(
         ipId
     )
 }
+
 fun createRstPacketOnWave(
     sour: InetSocketAddress, dest: InetSocketAddress,
     seq: Long, ack: Long, ipId: Int
@@ -116,4 +124,32 @@ fun createRstPacketOnWave(
         ControlBit(ControlBit.RST),
         ipId
     )
+}
+
+//===========================================udp packet
+fun createUdpPacket(
+    sour: InetSocketAddress,
+    dest: InetSocketAddress,
+    ipId: Int,
+    payload: ByteArray? = null
+): Packet {
+    val udpLen = UDP_HEADER_SIZE + (payload?.size ?: 0)
+    val tlHeader = UdpHeader(
+        sourcePort = sour.port, destPort = dest.port, udpLen = udpLen
+    )
+    val totalLength = IP4_HEADER_SIZE + udpLen
+
+    val ipHeader = IpHeader(
+        IpVersion.V4, 5,
+        TypeOfService(0), totalLength = totalLength,
+        identification = ipId, flags = IpFlag(0b010/*不分片*/), fragmentOffset = 0,
+        ttl = 64,
+        protocol = Protocol.UDP,
+        sourceAddresses = sour.address, destinationAddresses = dest.address
+    )
+    ipHeader.headerChecksum = ipHeader.computeHeaderChecksum()
+    val p = Packet(ipHeader, tlHeader, payload)
+    //disable validate checksum
+    tlHeader.checksum = 0
+    return p
 }
