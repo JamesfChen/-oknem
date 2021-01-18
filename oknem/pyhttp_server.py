@@ -4,6 +4,11 @@ from http.server import HTTPServer, BaseHTTPRequestHandler, SimpleHTTPRequestHan
 import os
 from oknem import domain
 
+'''
+[使用 mitmproxy 抓包](http://einverne.github.io/post/2017/02/mitmproxy.html)
+[Mitmproxy 是怎么工作的？](https://www.oschina.net/translate/how-mitmproxy-works)
+'''
+
 
 class RHandler(CGIHTTPRequestHandler):
     def parse_request(self):
