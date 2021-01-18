@@ -20,12 +20,14 @@ import java.util.concurrent.ExecutionException
  * All right reserved.
  *
  * @since: Jan/08/2021  Fri
+ *
+ * [两张动图-彻底明白TCP的三次握手与四次挥手](https://blog.csdn.net/qzcsu/article/details/72861891)
  */
 class TcpAnswerer(
     val pWriter: PacketWriter,
     val answerHandler: Handler,
     val answerers: ConcurrentHashMap<String, TcpAnswerer>
-) : Runnable{
+) : Runnable {
     var isusable: Boolean = false
     var syncCount = 0
     var packId = 1
@@ -37,7 +39,7 @@ class TcpAnswerer(
     val connected = mutableSetOf<String>()
     val connectionPool = ConnectionPool
     private val packetQueue = ArrayBlockingQueue<Packet>(100)
-     fun dispatch(packet: Packet) {
+    fun dispatch(packet: Packet) {
         packetQueue.offer(packet)
     }
 

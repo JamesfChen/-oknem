@@ -27,7 +27,7 @@ Protocol Layering
 +---------------------+
 
 一个ip包的payload size最大为1480(tcp报文段的payload size最大为1460 或者 udp报文段payload size为1472)，
-当应用层的1460(1472)< payload size<= 0xffff时，路由器就会将其切割成许多小块，进行分组发送。
+当应用层的1460(1472)< payload size<= 0xffff(64k)时，路由器就会将其切割成许多小块，进行分组发送。
 同一款分组包中的Identification相同，每个分组包的Fragment Offset表示其在完整包中的偏移位置，借此来组装成完整的包
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 | ip header | transport layer header| payload(http/ftp 1)     |-->第1个Packet

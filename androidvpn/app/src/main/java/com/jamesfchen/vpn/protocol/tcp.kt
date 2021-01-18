@@ -17,11 +17,6 @@ import java.util.concurrent.ExecutionException
  *
  * @author: hawks.jamesf
  * @since: Dec/19/2020  Sat
- * 对于tcp报文 total总量来说最大可以传输65535=2^15-1(payload 65535-header_size-option_size),而mtu只能最大1480(payload 1460),
- * 为什么payload负载的数据量不同?
- * 因为在ip包中通过分组形式对65535字节(64k)的数据包进行切割，按照顺序分组发送，而一个分组中只能存放的最大数据量为1480。
- *
- * [两张动图-彻底明白TCP的三次握手与四次挥手](https://blog.csdn.net/qzcsu/article/details/72861891)
  *
  */
 const val T_TAG = "${Constants.TAG}/tdp"
