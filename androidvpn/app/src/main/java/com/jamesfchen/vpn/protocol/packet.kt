@@ -14,6 +14,15 @@ import java.nio.ByteBuffer
  * @author: hawks.jamesf
  * @since: Dec/20/2020  Sun
  *
+ *
+
+layer | devices|传输数据的基本单位
+---|---|---
+应用层|应用网关|
+传输层|传输网关|数据段、报文段
+网络层|路由器|数据分组
+数据链路层|网桥、交换机|数据帧
+物理层|中继器、集线器|比特流
 Protocol Layering
 
 +---------------------+
