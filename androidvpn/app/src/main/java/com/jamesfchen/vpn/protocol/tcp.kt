@@ -17,6 +17,9 @@ import java.util.concurrent.ExecutionException
  *
  * @author: hawks.jamesf
  * @since: Dec/19/2020  Sat
+ * tcp 三次握手，四次挥手。
+ * 流量控制：利用滑动窗口，既提高了传输性能又防止传输数据超负荷
+ * 拥塞控制：慢开始、拥塞避免、快重发、快恢复
  *
  */
 const val T_TAG = "${Constants.TAG}/tdp"
