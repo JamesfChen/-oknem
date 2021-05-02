@@ -23,7 +23,7 @@ const val T_TAG = "${Constants.TAG}/tdp"
 const val TCP_HEADER_SIZE = 20
 const val TCP_OPTION_HEADER_SIZE = 40
 const val TCP_MTU_PAYLOAD_MAX_SIZE = 1460
-const val TCP_SIZE = 1480
+const val TCP_MAX_SIZE = 1480
 
 data class TcpHeader(
     val sourcePort: Int, val destinationPort: Int,
