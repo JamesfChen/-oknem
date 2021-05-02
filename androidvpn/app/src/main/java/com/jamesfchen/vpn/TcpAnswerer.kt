@@ -53,6 +53,7 @@ class TcpAnswerer(
     }
 
     override fun run() {
+        status = TcpStatus.LISTEN
         while (true) {
             val packet = packetQueue.take()
             val tcpHeader = packet.tlHeader as TcpHeader
@@ -95,7 +96,7 @@ class TcpAnswerer(
                     }
                     ++syncCount
                     status = TcpStatus.SYN_RECEIVED
-                } else if (controlbit.hasACK) {//send data to remote
+                } else if (controlbit.hasACK) {
                     if (status == TcpStatus.LAST_ACK) {
                         status = TcpStatus.CLOSED
                         if (sInterceptIps.contains(packet.ipHeader.destinationAddresses.hostAddress)) {
@@ -117,12 +118,15 @@ class TcpAnswerer(
                         closeConnection(destIp, destPort)
                         return
                     }
-                    val callerSeqNo = tcpHeader.sequenceNo
+                    val askerSeqNo = tcpHeader.sequenceNo
                     val payloadSize = packet.payload?.size ?: 0
-                    if (payloadSize == 0 || answererAckNo >= payloadSize + callerSeqNo) {
+                    if (payloadSize == 0 || answererAckNo >= payloadSize + askerSeqNo) {
+                        //握手最后一个包
+                        status = TcpStatus.ESTABLISHED
                         continue
                     }
-                    answererAckNo = callerSeqNo
+                    //send data to remote
+                    answererAckNo = askerSeqNo
                     answererAckNo += payloadSize
                     if (sInterceptIps.contains(packet.ipHeader.destinationAddresses.hostAddress)) {
                         Log.d(
@@ -161,13 +165,14 @@ class TcpAnswerer(
                         }
                     }
                     //在应答客户端ack时 seqNo=客户端seqNo ,ackNo=客户端seqNo+报文大小
+                    //todo: 在握手期间应答客户端不会发送只带ack控制符的包，这里有点问题？
                     pWriter.writePacket(
                         createAckPacketOnHandshake(
                             destAddr, srcAddr, answererSeqNo, answererAckNo, packId
                         )
                     )
                     ++packId
-                    status = TcpStatus.ESTABLISHED
+
 
                 } else if (controlbit.hasFIN) {//close connection
                     if (sInterceptIps.contains(packet.ipHeader.destinationAddresses.hostAddress)) {
