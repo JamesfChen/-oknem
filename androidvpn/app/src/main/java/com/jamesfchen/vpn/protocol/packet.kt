@@ -35,8 +35,8 @@ Protocol Layering
 |communication network|
 +---------------------+
 
-一个ip包的payload size最大为1480(tcp报文段的payload size最大为1460 或者 udp报文段payload size为1472)，
-当应用层的1460(1472)< payload size<= 0xffff(64k)时，路由器就会将其切割成许多小块，进行分组发送。
+一个ip mtu(Maximum Transmission Unit) 包的payload size最大为1480字节(tcp mtu 报文段的payload size最大为1460字节 或者 udp mtu 报文段payload size为1472字节)，
+所以当应用层的1460/1472字节 < payload size<= 0xffff(64k字节)时，路由器就会将其切割成许多小块(要么是ip分片，要么是tcp分段)，进行分组发送。
 同一款分组包中的Identification相同，每个分组包的Fragment Offset表示其在完整包中的偏移位置，借此来组装成完整的包
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 | ip header | transport layer header| payload(http/ftp 1)     |-->第1个Packet
@@ -51,11 +51,13 @@ Protocol Layering
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
  */
-//MTU(Maximum Transmission Unit)
 const val P_TAG = "${Constants.TAG}/packet"
-const val BUFFER_SIZE = 16*1024//16384
-// 4*1024
+const val BUFFER_SIZE = 16*1024//2^14(16384),表示一个ip包
+
 interface TransportLayerHeader {
+    fun toByteBuffer(): ByteBuffer
+}
+interface ApplicationLayerHeader {
     fun toByteBuffer(): ByteBuffer
 }
 

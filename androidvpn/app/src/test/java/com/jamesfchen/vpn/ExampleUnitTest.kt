@@ -25,7 +25,7 @@ import java.util.*
  * See [testing documentation](http://d.android.com/tools/testing).
  */
 class ExampleUnitTest {
-     val BUFFER_SIZE = 16384//65535=2^15-1
+     val BUFFER_SIZE = 16384//65535=2^14
     fun getPacket(file: String): Packet {
         val reader = javaClass.classLoader?.getResourceAsStream(file)?.reader()
         val ca = CharArray(2)

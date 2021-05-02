@@ -22,14 +22,14 @@ import java.util.*
 const val IP4_HEADER_SIZE = 20
 const val IP4_OPTION_HEADER_SIZE = 40
 const val IP4_HEADER_MAX_SIZE = 60
-const val IP4_PAYLOAD_MAX_SIZE = 1480
+const val IP4_MTU_PAYLOAD_MAX_SIZE = 1480
 const val IP4_SIZE = 1500
 
 data class IpHeader(
     val version: IpVersion,//4bits
     val ihl: Int,//4bits 描述IP包头的长度,由固定长度20字节+可变长度40字节，以4bytes为一个单位，固定长度20字节的值为20/4=5，需要用4bits表示5即为0101
     val typeOfService: TypeOfService,//8bits
-    val totalLength: Int,//16bits 可存65535大小
+    val totalLength: Int,//16bits, 可存2^16-1(65535)大小
     val identification: Int,//16bits 主机每发一个报文，加1，分片重组时会用到该字段。
     val flags: IpFlag,//3bits
     val fragmentOffset: Int,//13bits 分片重组时会用到该字段。表示较长的分组在分片后，某片在原分组中的相对位置。以8个字节为偏移单位
