@@ -17,16 +17,25 @@ import java.util.concurrent.ExecutionException
  *
  * @author: hawks.jamesf
  * @since: Dec/19/2020  Sat
+ *
  * tcp 三次握手，四次挥手。
+ * tcp如何实现可靠传输： 1.确认和重传 2.数据校验 3.数据合理分片排序 4.流量控制 5.拥塞控制
  * 流量控制：利用滑动窗口，既提高了传输性能又防止传输数据超负荷
  * 拥塞控制：慢开始、拥塞避免、快重发、快恢复
+ *
+ * 握手时为什么tcp还要发送最后一次报文，不能直接两次进行连接吗？
+ * 为了防止已经失效的连接请求发送给服务端，从而产生错误，多了一次服务端处理完失效的连接请求并且发送给客户端，这样连不连接就再次交给客户端。
+ *
+ * 挥手时客户端为什么要等待2MSL？
+ * 1.保证客户端发送的最后一个包能到达，没到达服务端会再次发送，然后客户端再重发
+ * 2.防止已经失效的包再次发送，在2MSL时间段内会处理掉所有的包，防止下次新的连接有旧的报文
  *
  */
 const val T_TAG = "${Constants.TAG}/tdp"
 const val TCP_HEADER_SIZE = 20
 const val TCP_OPTION_HEADER_SIZE = 40
 const val TCP_MTU_PAYLOAD_MAX_SIZE = 1460
-const val TCP_MAX_SIZE = 1480
+const val TCP_MAX_SIZETcpStatus = 1480
 
 data class TcpHeader(
     val sourcePort: Int, val destinationPort: Int,
